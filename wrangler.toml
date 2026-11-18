@@ -27,7 +27,7 @@ PUBLIC_BASE_URL = ""                         # e.g. https://api.example.com once
 # Empty BASE_PAY_TO disables the rail. Testnet = Base Sepolia (eip155:84532).
 BASE_NETWORK = "eip155:84532"
 BASE_USDC = "0x036CbD53842c5426634e7929541eC2318f3dCF7e"  # Circle USDC on Base Sepolia (mainnet: 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913)
-BASE_PAY_TO = ""
+BASE_PAY_TO = "0xEd31466eF9Ff467436F829eFF222bD2c07803d7a"  # Johnny Rabby wallet
 EVM_FACILITATOR_URL = "https://facilitator.payai.network"  # PayAI: no API key, supports bazaar. CDP needs API keys.
 
 [[d1_databases]]
