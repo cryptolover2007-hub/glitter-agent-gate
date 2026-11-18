@@ -47,5 +47,9 @@
     "esbuild@0.28.2": true,
     "workerd@1.20261117.1": true
   },
-  "private": true
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cryptolover2007-hub/glitter-agent-gate.git"
+  }
 }

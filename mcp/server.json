@@ -5,6 +5,11 @@
   "description": "Pay-per-call agent tools (web to Markdown, XRPL data, file conversion) via x402 in XRP or RLUSD.",
   "version": "0.1.0",
   "websiteUrl": "https://agents.glitterchainscout.trade/llms.txt",
+  "repository": {
+    "url": "https://github.com/cryptolover2007-hub/glitter-agent-gate",
+    "source": "github",
+    "subfolder": "mcp"
+  },
   "packages": [
     {
       "registryType": "npm",

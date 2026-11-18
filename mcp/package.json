@@ -28,5 +28,10 @@
     "rlusd",
     "agents"
   ],
-  "homepage": "https://agents.glitterchainscout.trade/llms.txt"
+  "homepage": "https://agents.glitterchainscout.trade/llms.txt",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cryptolover2007-hub/glitter-agent-gate.git",
+    "directory": "mcp"
+  }
 }
