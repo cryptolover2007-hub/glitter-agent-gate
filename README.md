@@ -15,13 +15,13 @@ marketplace lets other providers list their own APIs and get paid directly.
 
 | Slug | What | Price (XRP / RLUSD / USDC) | Johnny's range |
 |---|---|---|---|
-| `web-markdown` | Public web page → clean Markdown (Readability). Honors robots.txt. **No captcha/paywall/bot-protection bypass**; blocked pages return an error and are not charged. | 0.02 / 0.02 / 0.02 | $0.01–0.03 |
-| `xrpl-data` | `/account` (balance, reserve, spendable, trust lines, last 10 txs), `/token` (issuer, supply, XRP AMM price), `/prices` (CoinGecko). Mainnet or testnet ledgers. | 0.002 / 0.002 / 0.002 | $0.001–0.005 |
-| `convert` | PDF / CSV / TSV / XLSX / HTML → JSON or text. Raw bytes, or JSON `{url}` / `{content_base64}`. 10 MB max. | 0.05 / 0.05 / 0.05 | $0.02–0.10 |
-| `json-tools` | Safe deterministic JSON ops (pick, flatten, sort_by, dedupe, to_csv…). No eval, no user regex. | 0.005 / 0.005 / 0.005 | ~$0.005 (sandbox slot) |
+| `web-markdown` | Public web page → clean Markdown (Readability). Honors robots.txt. **No captcha/paywall/bot-protection bypass**; blocked pages return an error and are not charged. | 0.020436 / 0.02 / 0.02 | $0.01–0.03 |
+| `xrpl-data` | `/account` (balance, reserve, spendable, trust lines, last 10 txs), `/token` (issuer, supply, XRP AMM price), `/prices` (CoinGecko). Mainnet or testnet ledgers. | 0.002044 / 0.002 / 0.002 | $0.001–0.005 |
+| `convert` | PDF / CSV / TSV / XLSX / HTML → JSON or text. Raw bytes, or JSON `{url}` / `{content_base64}`. 10 MB max. | 0.051089 / 0.05 / 0.05 | $0.02–0.10 |
+| `json-tools` | Safe deterministic JSON ops (pick, flatten, sort_by, dedupe, to_csv…). No eval, no user regex. | 0.005109 / 0.005 / 0.005 | ~$0.005 (sandbox slot) |
 | `hello` | Smallest paid call, for testing clients. | 0.0001 / 0.0001 / 0.001 | — |
 
-XRP prices assume ≈ US$0.98/XRP (CoinGecko, 17 Nov 2026). Re-check before mainnet; XRP prices are static in `src/catalog.ts`.
+XRP prices use US$0.9787/XRP (CoinGecko + Kraken live, 17 Nov 2026 23:55 ET), rounded up to whole drops. They are static in `src/catalog.ts`; re-check if XRP moves a lot.
 A code sandbox is intentionally **not** in v1 (security risk). Later option: a locked-down sandbox on a separate Worker.
 
 ## Architecture
