@@ -1,5 +1,20 @@
 # Listing checklist for Glitter Agent Gate (https://agents.glitterchainscout.trade — live)
 
+## Status (18 Nov 2026, 12:30 AM ET)
+| Directory | Status | Link / what's needed |
+|---|---|---|
+| XRPL AI Hub | ✅ 7/7 endpoints registered (public API `POST https://xrpl-ai.org/api/verify`) | https://xrpl-ai.org/directory |
+| x402scan | ✅ 7/7 registered from OpenAPI (public tRPC `public.resources.registerFromOrigin`) | https://www.x402scan.com/server/5672761d-2449-4a86-8b1d-62fbaca74382 |
+| Official MCP Registry | ✅ `trade.glitterchainscout.agents/agent-gate` 0.1.0 | https://registry.modelcontextprotocol.io/v0/servers/trade.glitterchainscout.agents%2Fagent-gate/versions/latest |
+| PulseMCP | ⏸ submissions paused by PulseMCP; they also ingest the official registry | https://www.pulsemcp.com/submit |
+| Glama | ⏳ not indexed yet; "Add Server" needs a Glama sign-in (GitHub) | https://glama.ai/mcp/servers |
+| mcp.so | ✋ free listing needs sign-in (GitHub/Google); paid $39 skipped | https://mcp.so/submit |
+| mcpservers.org | ✋ free form (review ≤2 weeks), browser form | https://mcpservers.org/submit |
+| MCP Market | ✋ free queue (4–6 weeks), browser form | https://mcpmarket.com/submit |
+| Smithery | ✗ now a curated registry (Arcade); no self-submit, and it lists remote MCP URLs (ours is stdio) | https://smithery.ai |
+| awesome-x402 / awesome-mcp-servers | ✋ PR needs a GitHub token that can fork (the repo-scoped token can't) | see below |
+
+
 Status 17 Nov 2026: **XRPL AI Hub registered** (7/7 endpoints, via `POST https://xrpl-ai.org/api/verify`; re-run that to refresh). **MCP Registry published** (`trade.glitterchainscout.agents/agent-gate` 0.1.0 → npm `glitter-agent-gate-mcp`, repo https://github.com/cryptolover2007-hub/glitter-agent-gate). Others not yet submitted.
 
 Researched 17 Nov 2026. **Automatic** means agents/indexers find us with no submission once the trigger happens.
