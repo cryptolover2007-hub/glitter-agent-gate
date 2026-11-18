@@ -1,0 +1,51 @@
+{
+  "name": "x402-xrpl-gateway",
+  "version": "1.0.0",
+  "description": "Pay-per-call agent tools over x402 on the XRP Ledger (XRP + RLUSD), Cloudflare Worker",
+  "scripts": {
+    "dev": "wrangler dev --local --port 8787",
+    "db:migrate": "wrangler d1 migrations apply x402-gateway-dev --local",
+    "typecheck": "tsc -p .",
+    "wallets": "node scripts/setup-testnet-wallets.mjs",
+    "rlusd": "node scripts/get-testnet-rlusd.mjs 2",
+    "demo": "tsx clients/ts/agent-demo.ts",
+    "demo:base": "tsx clients/ts/agent-demo-base.ts",
+    "test:security": "tsx e2e/security-tests.ts",
+    "test:mcp": "tsx mcp/test-mcp.ts",
+    "verify:txs": "node e2e/verify-txs.mjs",
+    "mcp": "tsx mcp/src/index.ts",
+    "build:mcp": "cd mcp && esbuild src/index.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/index.js --packages=external"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@mozilla/readability": "^0.6.0",
+    "@x402/extensions": "^2.31.0",
+    "linkedom": "^0.18.15",
+    "turndown": "^7.2.5",
+    "unpdf": "^2.2.1",
+    "x402-xrpl": "^0.3.4",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
+    "xrpl": "^4.7.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261118.1",
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "@types/turndown": "^5.0.6",
+    "@x402/core": "^2.31.0",
+    "@x402/evm": "^2.31.0",
+    "@x402/fetch": "^2.31.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "viem": "^2.58.0",
+    "wrangler": "^4.164.0",
+    "zod": "^4.6.7"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "workerd@1.20261117.1": true
+  },
+  "private": true
+}

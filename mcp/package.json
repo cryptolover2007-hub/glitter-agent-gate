@@ -1,0 +1,13 @@
+{
+  "name": "xrpl-agent-tools-mcp",
+  "version": "0.1.0",
+  "description": "MCP server: pay-per-call agent tools (web to Markdown, XRPL data, file conversion, JSON utils) paid with x402 in XRP or RLUSD on the XRP Ledger.",
+  "type": "module",
+  "bin": { "xrpl-agent-tools-mcp": "dist/index.js" },
+  "files": ["dist", "README.md"],
+  "mcpName": "io.github.REPLACE_GITHUB_USER/xrpl-agent-tools",
+  "scripts": { "build": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/index.js --packages=external" },
+  "dependencies": { "@modelcontextprotocol/sdk": "^1.32.2", "x402-xrpl": "0.3.4", "xrpl": "^4.7.0", "zod": "^4.0.0" },
+  "license": "MIT",
+  "keywords": ["mcp", "x402", "xrpl", "rlusd", "agents"]
+}

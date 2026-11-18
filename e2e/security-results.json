@@ -1,0 +1,40 @@
+[
+  {
+    "name": "underpayment rejected",
+    "ok": true,
+    "detail": {
+      "status": 402,
+      "body": {
+        "error": "payment_requirements_mismatch"
+      }
+    }
+  },
+  {
+    "name": "cross-service invoice rejected",
+    "ok": true,
+    "detail": {
+      "status": 400,
+      "body": {
+        "error": "invoice_is_for_a_different_service"
+      }
+    }
+  },
+  {
+    "name": "first payment accepted",
+    "ok": true,
+    "detail": {
+      "status": 200,
+      "tx": "297CABA76A0F29F09FA567A4CD914515182A3D7B15339A6D54D6B26170A63841"
+    }
+  },
+  {
+    "name": "replay rejected",
+    "ok": true,
+    "detail": {
+      "status": 409,
+      "body": {
+        "error": "invoice_already_used"
+      }
+    }
+  }
+]

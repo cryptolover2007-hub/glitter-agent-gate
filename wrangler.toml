@@ -1,0 +1,37 @@
+# x402 XRPL Gateway — LOCAL / TESTNET configuration.
+# Nothing here is a secret. Real secrets (admin tokens) go in .dev.vars locally
+# or `wrangler secret put` later. Do NOT deploy until Johnny approves a name/domain.
+name = "x402-xrpl-gateway-dev"
+main = "src/index.ts"
+compatibility_date = "2026-11-01"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = false   # never auto-publish a workers.dev URL from this config
+
+[vars]
+GATEWAY_NAME = "XRPL Agent Tools (testnet)"
+X402_NETWORK = "xrpl:1"                     # xrpl:1 = testnet. xrpl:0 (mainnet) is refused unless ALLOW_MAINNET="true"
+ALLOW_MAINNET = "false"
+FACILITATOR_URL = "https://xrpl-facilitator-testnet.t54.ai"
+OWN_PAY_TO = "rPdrpPwmLv8b5xCYY2BjJc1rsW82As3tpP"   # testnet demo receiving wallet (public address only)
+RLUSD_ISSUER = "rQhWct2fv4Vc4KRjRgMrxa8xPN9Zx9iLKV" # RLUSD testnet issuer (mainnet: rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De)
+XRPL_RPC_TESTNET = "https://testnet.xrpl-labs.com/"
+XRPL_RPC_MAINNET = "https://xrplcluster.com/"
+EXPLORER_TX_URL = "https://testnet.xrpl.org/transactions/"
+PLATFORM_FEE_BPS = "0"                       # fee on 3rd-party listings, in basis points (100 = 1%). 0 = off
+REGISTRATION_MODE = "admin"                  # "admin" (needs REGISTRY_ADMIN_TOKEN) | "open" | "closed"
+ALLOW_HTTP_UPSTREAM = "false"                # only for local demos of 3rd-party listings
+INVOICE_TTL_SECONDS = "600"
+CONTACT_URL = "https://example.invalid/contact"
+PUBLIC_BASE_URL = ""                         # e.g. https://api.example.com once a domain is chosen; empty = use request origin
+# Second payment rail (optional): USDC on Base via an EVM facilitator, so the Bazaar can auto-index us.
+# Empty BASE_PAY_TO disables the rail. Testnet = Base Sepolia (eip155:84532).
+BASE_NETWORK = "eip155:84532"
+BASE_USDC = "0x036CbD53842c5426634e7929541eC2318f3dCF7e"  # Circle USDC on Base Sepolia (mainnet: 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913)
+BASE_PAY_TO = ""
+EVM_FACILITATOR_URL = "https://facilitator.payai.network"  # PayAI: no API key, supports bazaar. CDP needs API keys.
+
+[[d1_databases]]
+binding = "DB"
+database_name = "x402-gateway-dev"
+database_id = "00000000-0000-0000-0000-000000000000"  # placeholder; local dev uses a local SQLite file
+migrations_dir = "migrations"

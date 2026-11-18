@@ -1,0 +1,25 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.REPLACE_GITHUB_USER/xrpl-agent-tools",
+  "title": "XRPL Agent Tools (x402)",
+  "description": "Pay-per-call agent tools (web to Markdown, XRPL data, file conversion, JSON utils) paid via x402 in XRP or RLUSD.",
+  "version": "0.1.0",
+  "websiteUrl": "https://REPLACE_DOMAIN/llms.txt",
+  "repository": { "url": "https://github.com/REPLACE_GITHUB_USER/xrpl-agent-tools", "source": "github" },
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "xrpl-agent-tools-mcp",
+      "version": "0.1.0",
+      "transport": { "type": "stdio" },
+      "environmentVariables": [
+        { "name": "XRPL_SEED", "description": "Seed of a dedicated low-balance agent wallet that pays per call. Never use a main wallet.", "isRequired": true, "isSecret": true },
+        { "name": "GATEWAY_URL", "description": "Gateway base URL", "isRequired": false, "default": "https://REPLACE_DOMAIN" },
+        { "name": "X402_NETWORK", "description": "xrpl:1 (testnet, default) or xrpl:0 (mainnet; also needs X402_ALLOW_MAINNET=true)", "isRequired": false, "default": "xrpl:1" },
+        { "name": "MAX_XRP_PER_CALL", "description": "Per-call spend cap in XRP", "isRequired": false, "default": "0.1" },
+        { "name": "SESSION_BUDGET_XRP", "description": "Total XRP the server may spend per session", "isRequired": false, "default": "1" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+node_modules/
+.secrets/
+.wrangler/
+.dev.vars
+*.seed
+.env
+__pycache__/
+.venv/
