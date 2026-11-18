@@ -18,3 +18,11 @@ Tools: `list_services` (free), `call_paid_service`, `web_to_markdown`, `xrpl_acc
 - Default gateway `https://agents.glitterchainscout.trade` (XRPL mainnet). Payments there need `X402_ALLOW_MAINNET=true`.
 - Testing: `GATEWAY_URL=http://127.0.0.1:8787` with a testnet seed (network is detected from the gateway).
 - Use a dedicated wallet that only holds what you are willing to spend.
+
+## Docker / introspection
+The server starts with **no env vars, wallet or network access** and answers `initialize` / `tools/list` (this is what Glama checks).
+Paid tools without `XRPL_SEED` return `{status: "payment_required", charged: false, quote: {...}}` with the live 402 prices.
+```bash
+docker build -t glitter-agent-gate-mcp .          # Dockerfile at the repo root, builds mcp/
+docker run -i --rm -e XRPL_SEED=… -e X402_ALLOW_MAINNET=true glitter-agent-gate-mcp
+```

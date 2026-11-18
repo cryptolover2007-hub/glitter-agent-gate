@@ -3,7 +3,7 @@
   "name": "trade.glitterchainscout.agents/agent-gate",
   "title": "Glitter Agent Gate (x402)",
   "description": "Pay-per-call agent tools (web to Markdown, XRPL data, file conversion) via x402 in XRP or RLUSD.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "websiteUrl": "https://agents.glitterchainscout.trade/llms.txt",
   "repository": {
     "url": "https://github.com/cryptolover2007-hub/glitter-agent-gate",
@@ -15,7 +15,7 @@
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "glitter-agent-gate-mcp",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "transport": {
         "type": "stdio"
       },

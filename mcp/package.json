@@ -1,6 +1,6 @@
 {
   "name": "glitter-agent-gate-mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "MCP server for Glitter Agent Gate: pay-per-call agent tools (web to Markdown, XRPL data, file conversion, JSON utils) paid with x402 in XRP or RLUSD on the XRP Ledger.",
   "type": "module",
   "bin": {
@@ -12,7 +12,8 @@
   ],
   "mcpName": "trade.glitterchainscout.agents/agent-gate",
   "scripts": {
-    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/index.js --packages=external"
+    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/index.js --packages=external",
+    "start": "node dist/index.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",
@@ -33,5 +34,11 @@
     "type": "git",
     "url": "git+https://github.com/cryptolover2007-hub/glitter-agent-gate.git",
     "directory": "mcp"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }
