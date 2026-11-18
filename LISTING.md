@@ -1,6 +1,6 @@
 # Listing checklist for Glitter Agent Gate (https://agents.glitterchainscout.trade — live)
 
-Status 17 Nov 2026: **XRPL AI Hub registered** (7/7 endpoints, via `POST https://xrpl-ai.org/api/verify`; re-run that to refresh). MCP Registry: domain proof served at `/.well-known/mcp-registry-auth` (public key in wrangler.toml, private key `.secrets/mcp-registry-ed25519.pem`); publish once npm `glitter-agent-gate-mcp@0.1.0` is live. Others not yet submitted.
+Status 17 Nov 2026: **XRPL AI Hub registered** (7/7 endpoints, via `POST https://xrpl-ai.org/api/verify`; re-run that to refresh). **MCP Registry published** (`trade.glitterchainscout.agents/agent-gate` 0.1.0 → npm `glitter-agent-gate-mcp`, repo https://github.com/cryptolover2007-hub/glitter-agent-gate). Others not yet submitted.
 
 Researched 17 Nov 2026. **Automatic** means agents/indexers find us with no submission once the trigger happens.
 
