@@ -1,4 +1,6 @@
-# Listing checklist for Glitter Agent Gate (https://agents.glitterchainscout.trade, after the production deploy)
+# Listing checklist for Glitter Agent Gate (https://agents.glitterchainscout.trade — live)
+
+Status 17 Nov 2026: **XRPL AI Hub registered** (7/7 endpoints, via `POST https://xrpl-ai.org/api/verify`; re-run that to refresh). MCP Registry pending (needs an npm account). Others not yet submitted.
 
 Researched 17 Nov 2026. **Automatic** means agents/indexers find us with no submission once the trigger happens.
 

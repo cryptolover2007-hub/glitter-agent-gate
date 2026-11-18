@@ -6,6 +6,11 @@ import { json } from "./util";
 
 export const VERSION = "0.1.0";
 const urlFor = (origin: string, svc: PaidService, path: string) => `${origin}/s/${svc.slug}${path}`;
+/** Probe-able URL for crawlers: routes with required query params get their documented example values, so a bare GET returns the 402 instead of a 400. */
+const probeUrlFor = (origin: string, svc: PaidService, r: { path: string; query?: Record<string, { required?: boolean; example?: string }> }) => {
+  const req = Object.entries(r.query ?? {}).filter(([, q]) => q.required && q.example);
+  return urlFor(origin, svc, r.path) + (req.length ? "?" + new URLSearchParams(req.map(([k, q]) => [k, String(q.example)])).toString() : "");
+};
 
 function priceList(env: Env, svc: PaidService) {
   return buildAccepts(env, svc, null).map((r) => ({ network: r.network, asset: assetSymbol(r), assetId: r.asset, amount: r.amount, amountDisplay: amountDisplay(r), payTo: r.payTo, issuer: (r.extra as any)?.issuer }));
@@ -47,9 +52,9 @@ export function wellKnownX402(env: Env, origin: string, services: PaidService[])
     version: 1, x402Version: 2,
     name: env.GATEWAY_NAME,
     description: "Pay-per-call tools for AI agents: web page to Markdown, XRPL/crypto data, file conversion and JSON utilities. Pay in XRP or RLUSD on the XRP Ledger via x402.",
-    resources: all.map(({ s, r }) => urlFor(origin, s, r.path)),
+    resources: all.map(({ s, r }) => probeUrlFor(origin, s, r)),
     resourceDetails: all.map(({ s, r }) => ({
-      url: urlFor(origin, s, r.path), method: r.method, name: `${s.name}${r.path ? " " + r.path : ""}`, description: `${s.description} ${r.summary}.`,
+      url: probeUrlFor(origin, s, r), method: r.method, name: `${s.name}${r.path ? " " + r.path : ""}`, description: `${s.description} ${r.summary}.`,
       accepts: buildAccepts(env, s, null).map((a) => ({ network: a.network, asset: assetSymbol(a), amount: a.amount, amountDisplay: amountDisplay(a), payTo: a.payTo })),
     })),
     instructions: `Call any resource, pay the 402 (x402 v2, exact scheme) in XRP or RLUSD on ${env.X402_NETWORK}, retry with PAYMENT-SIGNATURE. Docs: ${origin}/llms.txt`,

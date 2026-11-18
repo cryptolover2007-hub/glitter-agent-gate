@@ -97,7 +97,7 @@ function bodyExample(route: RouteDoc): Record<string, unknown> {
 
 export function resourceInfo(svc: PaidService, url: string) {
   return {
-    url, description: svc.description, mimeType: "application/json",
+    url, name: svc.name, description: svc.description, mimeType: "application/json",
     serviceName: svc.name.replace(/[^\x20-\x7e]/g, "").slice(0, 32),
     tags: svc.tags.slice(0, 5).map((t) => t.slice(0, 32)),
   };

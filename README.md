@@ -1,14 +1,14 @@
 # Glitter Agent Gate — x402 pay-per-call tools for AI agents
 
-Production URL (not deployed yet): **https://agents.glitterchainscout.trade**
+**Live on mainnet: https://agents.glitterchainscout.trade** (deployed 17 Nov 2026)
 
 "The plumbing agents pay for": a Cloudflare Worker that sells small, useful tool endpoints to AI agents, paid **per call** with
 [x402](https://docs.x402.org) on the XRP Ledger in **XRP or RLUSD** (via the t54 facilitator). It can also offer **USDC on Base**
 as a second option in the same 402 so EVM-only buyers and the Coinbase/PayAI Bazaar indexes can find it. A secondary
 marketplace lets other providers list their own APIs and get paid directly.
 
-> Status: works end to end on **XRPL testnet** (`xrpl:1`) running locally with `wrangler dev`. A mainnet config exists
-> (`wrangler.toml` → `[env.production]`) but **nothing is deployed** and no mainnet payment has been made.
+> Status: **live on XRPL mainnet + Base** at https://agents.glitterchainscout.trade (`[env.production]`), listed on the XRPL AI Hub.
+> Validated end to end on XRPL testnet (`xrpl:1`); no mainnet payment has been made yet. Local dev stays on testnet.
 > Real testnet settlements: see [`e2e/RESULTS.md`](e2e/RESULTS.md).
 
 ## What it sells (v1)
@@ -122,15 +122,16 @@ Listing fees or a premium placement in `/services` are the other non-custodial r
 | Base USDC | Base Sepolia `eip155:84532` | Base `eip155:8453`, USDC `0x8335…2913`, payTo `0xEd31…3d7a` |
 | Fee / registration | 0% / admin | 0% / admin |
 | Dashboard | open locally | needs `DASHBOARD_TOKEN` secret (fails closed) |
-| D1 | `glitter-agent-gate-dev` (local) | `glitter-agent-gate` (**not created yet**, id `PENDING_D1_CREATE`) |
+| D1 | `glitter-agent-gate-dev` (local) | `glitter-agent-gate` (`bc0ec690-…c9d1`) |
 
-## Launch (needs Johnny's go-ahead for every step)
-1. `npx wrangler d1 create glitter-agent-gate` → paste the id into `[[env.production.d1_databases]]`.
-2. `npx wrangler d1 migrations apply glitter-agent-gate --env production --remote`
-3. `npx wrangler secret put REGISTRY_ADMIN_TOKEN --env production` and `npx wrangler secret put DASHBOARD_TOKEN --env production`
-4. `npx wrangler deploy --env production` → creates the `agents.glitterchainscout.trade` DNS record + certificate.
-5. Smoke test: `curl -i https://agents.glitterchainscout.trade/s/hello` must return 402 with `xrpl:0` and `payTo` `rELk9…`.
-6. Then list it (see `LISTING.md`).
+## Deploying production
+Box `wrangler` auth is broken (the injected API token returns 401), so production was deployed through the Cloudflare API (MCP `execute`):
+1. `npx wrangler deploy --dry-run --env production --minify --outdir /tmp/bundle-prod`
+2. `python3 scripts/build-cf-deploy-payload.py` → writes `.secrets/deploy-code.js` (contains secrets, chmod 600, delete after use)
+3. Run that file as the Cloudflare MCP `execute` code (`PUT /accounts/{id}/workers/scripts/glitter-agent-gate`).
+With working wrangler auth instead: `npx wrangler deploy --env production` (secrets via `wrangler secret put … --env production`).
+New migrations: apply via `wrangler d1 migrations apply glitter-agent-gate --env production --remote` (the `d1_migrations` table is in sync).
+Custom domain `agents.glitterchainscout.trade` → `glitter-agent-gate` is attached; `workers.dev` is disabled.
 
 ## Costs
 - **Cloudflare:** Workers Free = 100k requests/day but only **10 ms CPU per request**. `xrpl-data`, `json-tools` and `hello` are I/O-bound and fit. `web-markdown` (DOM parsing) and `convert` (PDF/XLSX) can exceed 10 ms on big inputs, so plan on **Workers Paid ($5/month minimum)** once those get traffic. D1 free tier (5M row reads, 100k row writes/day) is plenty. Bundle ≈ 1.1 MB gzipped (under the 3 MB free limit). Check Cloudflare's pricing page before launch, these numbers can change.
