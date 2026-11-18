@@ -148,9 +148,15 @@ function errorResponse(e: unknown): Response {
 export async function handlePaid(req: Request, env: Env, svc: PaidService, subpath: string, publicUrl: string,
   run: (payer: string) => Promise<Response>): Promise<Response> {
   isMainnetAllowed(env);
-  try { svc.validate?.(req, subpath); } catch (e) { return errorResponse(e); } // never charge for a malformed request
-  const route = routeFor(svc, subpath);
   const sig = req.headers.get(HEADER_PAYMENT_SIGNATURE);
+  // Malformed requests are never charged. With a payment attached we reject before verify/settle (400, nothing moves).
+  // Without one we still answer 402 (discovery crawlers probe bare URLs, per x402scan DISCOVERY.md) and say what's wrong.
+  let inputError: string | null = null;
+  try { svc.validate?.(req, subpath); } catch (e) {
+    if (sig || !(e instanceof HttpError) || e.status !== 400) return errorResponse(e);
+    inputError = e.message;
+  }
+  const route = routeFor(svc, subpath);
   const ttl = Number(env.INVOICE_TTL_SECONDS || "600");
 
   if (!sig) {
@@ -163,7 +169,8 @@ export async function handlePaid(req: Request, env: Env, svc: PaidService, subpa
     await env.DB.prepare("DELETE FROM invoices WHERE expires_at < ? AND status != 'processing'").bind(now - 3600_000).run().catch(() => {});
     await logCall(env, svc.slug, "payment_required", 402);
     return paymentRequiredResponse({
-      x402Version: 2, error: `${HEADER_PAYMENT_SIGNATURE} header is required`,
+      x402Version: 2,
+      error: inputError ? `invalid_input: ${inputError}. Fix the request before paying (a paid request with bad input is rejected with 400 and not charged).` : `${HEADER_PAYMENT_SIGNATURE} header is required`,
       resource: resourceInfo(svc, publicUrl), accepts, extensions: bazaarExtension(route),
     });
   }

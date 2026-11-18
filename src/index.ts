@@ -41,6 +41,7 @@ export default {
       if (p === "/a2a" && req.method === "POST") return await a2aRpc(req, env, origin, ownServices(env));
       if (p === "/llms.txt") return new Response(llmsTxt(env, origin, await allServices(env)), { headers: { "content-type": "text/plain; charset=utf-8", ...corsHeaders() } });
       if (p === "/openapi.json") return json(openapi(env, origin, await allServices(env)));
+      if (p === "/favicon.ico" || p === "/favicon.svg") return new Response(FAVICON_SVG, { headers: { "content-type": "image/svg+xml", "cache-control": "public, max-age=86400" } });
       if (p === "/.well-known/mcp-registry-auth") return env.MCP_REGISTRY_AUTH ? new Response(env.MCP_REGISTRY_AUTH + "\n", { headers: { "content-type": "text/plain" } }) : json({ error: "not found" }, 404);
       if (p === "/.well-known/trustline-merchant.txt") return new Response(`xrpl:${env.OWN_PAY_TO}\n`, { headers: { "content-type": "text/plain" } });
 
@@ -61,3 +62,5 @@ export default {
     }
   },
 };
+
+const FAVICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffd76a"/><stop offset="1" stop-color="#c77dff"/></linearGradient></defs><rect width="64" height="64" rx="14" fill="#14111f"/><path d="M44 22a14 14 0 1 0 2 14H33" fill="none" stroke="url(#g)" stroke-width="7" stroke-linecap="round"/><circle cx="49" cy="14" r="3" fill="#ffd76a"/></svg>`;

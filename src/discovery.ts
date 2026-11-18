@@ -133,22 +133,26 @@ export function openapi(env: Env, origin: string, services: PaidService[]) {
       operationId: `${s.slug}${r.path.replace(/\W+/g, "_")}`, summary: `${s.name}: ${r.summary}`, description: s.description, tags: [s.slug],
       parameters: Object.entries(r.query ?? {}).map(([name, q]) => ({ name, in: "query", required: !!q.required, description: q.description, schema: { type: q.type }, example: q.example })),
       // x402scan reads x-payment-info.protocols + price (USD); accepts lists the real on-chain options.
-      "x-payment-info": { protocols: ["x402"], price: { mode: "fixed", currency: "USD", amount: s.price.usdc ?? s.price.rlusd ?? "0" }, x402Version: 2, accepts: priceList(env, s) },
+      "x-payment-info": { protocols: [{ x402: { x402Version: 2, schemes: ["exact"] } }], price: { mode: "fixed", currency: "USD", amount: s.price.usdc ?? s.price.rlusd ?? "0" }, x402Version: 2, accepts: priceList(env, s) },
       responses: {
         "200": { description: "Paid result. PAYMENT-RESPONSE header carries the settlement tx.", content: { "application/json": { example: r.outputExample ?? {} } } },
         "402": { description: "Payment required. PAYMENT-REQUIRED header (base64 x402 v2 PaymentRequired).", headers: { "PAYMENT-REQUIRED": { schema: { type: "string" } } } },
         "400": { description: "Invalid input (checked before payment; never charged)" },
       },
-      security: [{ x402: [] }],
     };
     if (r.body) op.requestBody = { required: true, description: r.body.description, content: Object.fromEntries(r.body.contentTypes.map((c) => [c, { schema: c.includes("json") ? { type: "object" } : { type: "string", format: "binary" } }])) };
     paths[`/s/${s.slug}${r.path}`] = { [r.method.toLowerCase()]: op };
   }
   return {
     openapi: "3.1.0",
-    info: { title: env.GATEWAY_NAME, version: VERSION, description: "x402 pay-per-call endpoints. Send PAYMENT-SIGNATURE after a 402." },
+    info: {
+      title: env.GATEWAY_NAME, version: VERSION,
+      description: "x402 pay-per-call endpoints for AI agents. No API keys or accounts: call, receive 402 + PAYMENT-REQUIRED, pay, retry with PAYMENT-SIGNATURE.",
+      contact: { name: "Glitter Chain Scout", url: env.CONTACT_URL || origin },
+      license: { name: "MIT", identifier: "MIT" },
+      "x-guidance": `Every /s/* route is paid per call with x402 v2 (exact scheme). Options in each 402: XRP or RLUSD on ${env.X402_NETWORK} (t54 facilitator) and USDC on ${env.BASE_NETWORK || "Base"}. Failed calls are not charged; bad input is rejected before settlement. Prices: ${origin}/services. Guide: ${origin}/llms.txt`,
+    },
     servers: [{ url: origin }],
-    components: { securitySchemes: { x402: { type: "apiKey", in: "header", name: "PAYMENT-SIGNATURE", description: "x402 v2 payment payload (base64). Obtain requirements from the 402 response." } } },
     paths,
   };
 }
