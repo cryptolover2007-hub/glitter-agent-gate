@@ -71,7 +71,7 @@ BASE_USDC = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"  # Circle USDC on Base
 BASE_PAY_TO = "0xEd31466eF9Ff467436F829eFF222bD2c07803d7a"  # Johnny Rabby wallet
 EVM_FACILITATOR_URL = "https://facilitator.payai.network"
 REQUIRE_DASHBOARD_TOKEN = "true"             # dashboard/stats fail closed unless DASHBOARD_TOKEN secret is set
-MCP_REGISTRY_AUTH = ""
+MCP_REGISTRY_AUTH = "v=MCPv1; k=ed25519; p=VQxxWY5/tOaAukpPVLFt5j1QqOykMcJr8faKfrgZ8OE="  # public key only; private key in .secrets/mcp-registry-ed25519.pem
 
 [[env.production.d1_databases]]
 binding = "DB"
