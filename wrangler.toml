@@ -1,14 +1,16 @@
-# x402 XRPL Gateway — LOCAL / TESTNET configuration.
-# Nothing here is a secret. Real secrets (admin tokens) go in .dev.vars locally
-# or `wrangler secret put` later. Do NOT deploy until Johnny approves a name/domain.
-name = "x402-xrpl-gateway-dev"
+# Glitter Agent Gate — x402 pay-per-call tools for AI agents.
+# Default (top-level) config = LOCAL / TESTNET (xrpl:1, Base Sepolia). `npm run dev` uses this.
+# [env.production] below = MAINNET (xrpl:0, Base). Deploy ONLY with Johnny's go-ahead:
+#   npx wrangler deploy --env production
+# Nothing here is a secret. Secrets go in .dev.vars locally or `wrangler secret put --env production`.
+name = "glitter-agent-gate-dev"
 main = "src/index.ts"
 compatibility_date = "2026-11-01"
 compatibility_flags = ["nodejs_compat"]
 workers_dev = false   # never auto-publish a workers.dev URL from this config
 
 [vars]
-GATEWAY_NAME = "XRPL Agent Tools (testnet)"
+GATEWAY_NAME = "Glitter Agent Gate (testnet)"
 X402_NETWORK = "xrpl:1"                     # xrpl:1 = testnet. xrpl:0 (mainnet) is refused unless ALLOW_MAINNET="true"
 ALLOW_MAINNET = "false"
 FACILITATOR_URL = "https://xrpl-facilitator-testnet.t54.ai"
@@ -21,17 +23,58 @@ PLATFORM_FEE_BPS = "0"                       # fee on 3rd-party listings, in bas
 REGISTRATION_MODE = "admin"                  # "admin" (needs REGISTRY_ADMIN_TOKEN) | "open" | "closed"
 ALLOW_HTTP_UPSTREAM = "false"                # only for local demos of 3rd-party listings
 INVOICE_TTL_SECONDS = "600"
-CONTACT_URL = "https://example.invalid/contact"
-PUBLIC_BASE_URL = ""                         # e.g. https://api.example.com once a domain is chosen; empty = use request origin
+CONTACT_URL = "https://glitterchainscout.trade"
+PUBLIC_BASE_URL = ""                         # empty = use request origin (local dev)
 # Second payment rail (optional): USDC on Base via an EVM facilitator, so the Bazaar can auto-index us.
 # Empty BASE_PAY_TO disables the rail. Testnet = Base Sepolia (eip155:84532).
 BASE_NETWORK = "eip155:84532"
 BASE_USDC = "0x036CbD53842c5426634e7929541eC2318f3dCF7e"  # Circle USDC on Base Sepolia (mainnet: 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913)
-BASE_PAY_TO = "0xEd31466eF9Ff467436F829eFF222bD2c07803d7a"  # Johnny Rabby wallet
+BASE_PAY_TO = "0xEd31466eF9Ff467436F829eFF222bD2c07803d7a"  # Johnny Rabby wallet (here only receives Base SEPOLIA test USDC)
 EVM_FACILITATOR_URL = "https://facilitator.payai.network"  # PayAI: no API key, supports bazaar. CDP needs API keys.
+REQUIRE_DASHBOARD_TOKEN = "false"
+MCP_REGISTRY_AUTH = ""                       # optional MCP Registry HTTP-auth proof line, served at /.well-known/mcp-registry-auth
 
 [[d1_databases]]
 binding = "DB"
-database_name = "x402-gateway-dev"
+database_name = "glitter-agent-gate-dev"
 database_id = "00000000-0000-0000-0000-000000000000"  # placeholder; local dev uses a local SQLite file
+migrations_dir = "migrations"
+
+# =====================================================================
+# PRODUCTION (MAINNET). Vars are NOT inherited from the top level in wrangler envs, so all are repeated.
+# =====================================================================
+[env.production]
+name = "glitter-agent-gate"
+workers_dev = false
+# Custom Domain: on `wrangler deploy --env production` Cloudflare creates the DNS record + certificate for
+# agents.glitterchainscout.trade (zone 037ec2b1d07e3d0ce8f6a971179778e6, verified free of records on 17 Nov 2026).
+routes = [ { pattern = "agents.glitterchainscout.trade", custom_domain = true } ]
+
+[env.production.vars]
+GATEWAY_NAME = "Glitter Agent Gate"
+X402_NETWORK = "xrpl:0"
+ALLOW_MAINNET = "true"
+FACILITATOR_URL = "https://xrpl-facilitator-mainnet.t54.ai"
+OWN_PAY_TO = "rELk9NdWK29x3qmfw3mHrLi7L6GPbvhFPi"   # Johnny mainnet XRP + RLUSD (RLUSD trust line verified 17 Nov 2026)
+RLUSD_ISSUER = "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De" # RLUSD mainnet issuer (Ripple)
+XRPL_RPC_TESTNET = "https://testnet.xrpl-labs.com/"
+XRPL_RPC_MAINNET = "https://xrplcluster.com/"
+EXPLORER_TX_URL = "https://livenet.xrpl.org/transactions/"
+PLATFORM_FEE_BPS = "0"                       # 0% at launch (Johnny, 17 Nov 2026)
+REGISTRATION_MODE = "admin"                  # 3rd-party listings only with REGISTRY_ADMIN_TOKEN
+ALLOW_HTTP_UPSTREAM = "false"
+INVOICE_TTL_SECONDS = "600"
+CONTACT_URL = "https://glitterchainscout.trade"
+PUBLIC_BASE_URL = "https://agents.glitterchainscout.trade"
+BASE_NETWORK = "eip155:8453"                 # Base mainnet
+BASE_USDC = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"  # Circle USDC on Base
+BASE_PAY_TO = "0xEd31466eF9Ff467436F829eFF222bD2c07803d7a"  # Johnny Rabby wallet
+EVM_FACILITATOR_URL = "https://facilitator.payai.network"
+REQUIRE_DASHBOARD_TOKEN = "true"             # dashboard/stats fail closed unless DASHBOARD_TOKEN secret is set
+MCP_REGISTRY_AUTH = ""
+
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "glitter-agent-gate"
+database_id = "PENDING_D1_CREATE"            # set after: npx wrangler d1 create glitter-agent-gate (needs go-ahead)
 migrations_dir = "migrations"

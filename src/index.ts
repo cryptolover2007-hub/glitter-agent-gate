@@ -41,6 +41,7 @@ export default {
       if (p === "/a2a" && req.method === "POST") return await a2aRpc(req, env, origin, ownServices(env));
       if (p === "/llms.txt") return new Response(llmsTxt(env, origin, await allServices(env)), { headers: { "content-type": "text/plain; charset=utf-8", ...corsHeaders() } });
       if (p === "/openapi.json") return json(openapi(env, origin, await allServices(env)));
+      if (p === "/.well-known/mcp-registry-auth") return env.MCP_REGISTRY_AUTH ? new Response(env.MCP_REGISTRY_AUTH + "\n", { headers: { "content-type": "text/plain" } }) : json({ error: "not found" }, 404);
       if (p === "/.well-known/trustline-merchant.txt") return new Response(`xrpl:${env.OWN_PAY_TO}\n`, { headers: { "content-type": "text/plain" } });
 
       // ---- marketplace (secondary) ----

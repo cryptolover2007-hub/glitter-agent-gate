@@ -6,7 +6,7 @@ import TurndownService from "turndown";
 import type { Env } from "../types";
 import { assertPublicHttpUrl, HttpError, json, readCapped } from "../util";
 
-export const USER_AGENT = "XRPLAgentToolsBot/0.1 (+x402; respects robots.txt)";
+export const USER_AGENT = "GlitterAgentGateBot/0.1 (+https://agents.glitterchainscout.trade/llms.txt; respects robots.txt)";
 const MAX_BYTES = 3 * 1024 * 1024;
 
 async function robotsAllowed(u: URL): Promise<boolean> {

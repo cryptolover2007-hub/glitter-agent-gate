@@ -1,16 +1,23 @@
 #!/usr/bin/env node
 // MCP server (stdio) that lets Claude or any MCP client call the gateway's paid tools.
 // It pays per call from YOUR agent wallet (XRPL_SEED) using the x402-xrpl SDK, with hard spend caps.
-// Default network is XRPL TESTNET (xrpl:1). Mainnet requires X402_NETWORK=xrpl:0 AND X402_ALLOW_MAINNET=true.
+// Default gateway: https://agents.glitterchainscout.trade. Paying on XRPL mainnet requires X402_ALLOW_MAINNET=true.
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { Wallet } from "xrpl";
 import { x402Purchase, decodePaymentResponseHeader } from "x402-xrpl";
 
-const GATEWAY = (process.env.GATEWAY_URL ?? "http://127.0.0.1:8787").replace(/\/+$/, "");
-const NETWORK = (process.env.X402_NETWORK ?? "xrpl:1") as "xrpl:0" | "xrpl:1";
-if (NETWORK === "xrpl:0" && process.env.X402_ALLOW_MAINNET !== "true") throw new Error("Refusing mainnet without X402_ALLOW_MAINNET=true");
+const GATEWAY = (process.env.GATEWAY_URL ?? "https://agents.glitterchainscout.trade").replace(/\/+$/, "");
+// Network: X402_NETWORK if set, else whatever the gateway advertises in /services. Mainnet always needs an explicit opt-in.
+async function resolveNetwork(): Promise<"xrpl:0" | "xrpl:1"> {
+  let n = process.env.X402_NETWORK;
+  if (!n) { try { n = (await (await fetch(`${GATEWAY}/services`)).json())?.networks?.xrpl; } catch { n = undefined; } }
+  if (n !== "xrpl:0" && n !== "xrpl:1") n = "xrpl:1";
+  return n as "xrpl:0" | "xrpl:1";
+}
+const NETWORK = await resolveNetwork();
+const MAINNET_BLOCKED = NETWORK === "xrpl:0" && process.env.X402_ALLOW_MAINNET !== "true";
 const WS = process.env.XRPL_WS ?? (NETWORK === "xrpl:0" ? "wss://xrplcluster.com" : "wss://testnet.xrpl-labs.com");
 const RLUSD_HEX = "524C555344000000000000000000000000000000";
 const MAX_XRP_PER_CALL = Number(process.env.MAX_XRP_PER_CALL ?? "0.1");
@@ -22,6 +29,7 @@ let spent = { XRP: 0, RLUSD: 0 };
 const wallet = process.env.XRPL_SEED ? Wallet.fromSeed(process.env.XRPL_SEED) : null;
 
 async function paidCall(opts: { service: string; path?: string; query?: Record<string, string>; method?: "GET" | "POST"; body?: unknown; asset?: "XRP" | "RLUSD" }) {
+  if (MAINNET_BLOCKED) return { error: `The gateway at ${GATEWAY} charges real funds on XRPL mainnet. Set X402_ALLOW_MAINNET=true to allow payments (use a dedicated low-balance wallet).` };
   if (!wallet) return { error: "XRPL_SEED is not set; the MCP server cannot pay. Set it in the MCP client config (use a dedicated low-balance agent wallet)." };
   const asset = opts.asset ?? "XRP";
   const qs = opts.query && Object.keys(opts.query).length ? "?" + new URLSearchParams(opts.query).toString() : "";
@@ -60,9 +68,9 @@ async function paidCall(opts: { service: string; path?: string; query?: Record<s
 const asText = (o: unknown) => ({ content: [{ type: "text" as const, text: JSON.stringify(o, null, 2) }] });
 const assetArg = z.enum(["XRP", "RLUSD"]).optional().describe("Pay in XRP (default) or RLUSD");
 
-const server = new McpServer({ name: "xrpl-agent-tools", version: "0.1.0" });
+const server = new McpServer({ name: "glitter-agent-gate", version: "0.1.0" });
 
-server.registerTool("list_services", { description: "List the gateway's paid tools with prices (free, no payment).", inputSchema: {} },
+server.registerTool("list_services", { description: "List Glitter Agent Gate's paid tools with prices (free, no payment).", inputSchema: {} },
   async () => asText(await (await fetch(`${GATEWAY}/services`)).json()));
 
 server.registerTool("call_paid_service", {

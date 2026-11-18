@@ -2,7 +2,10 @@ import type { Env } from "./types";
 import { HttpError, json } from "./util";
 
 export function checkDashboardAuth(req: Request, env: Env) {
-  if (!env.DASHBOARD_TOKEN) return;
+  if (!env.DASHBOARD_TOKEN) {
+    if (env.REQUIRE_DASHBOARD_TOKEN === "true") throw new HttpError(503, "dashboard disabled: DASHBOARD_TOKEN secret not set");
+    return;
+  }
   const u = new URL(req.url);
   const tok = u.searchParams.get("token") ?? (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "");
   if (tok !== env.DASHBOARD_TOKEN) throw new HttpError(401, "dashboard token required");

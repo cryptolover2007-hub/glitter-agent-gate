@@ -1,11 +1,14 @@
-# XRPL Agent Tools — x402 pay-per-call gateway (TESTNET build)
+# Glitter Agent Gate — x402 pay-per-call tools for AI agents
+
+Production URL (not deployed yet): **https://agents.glitterchainscout.trade**
 
 "The plumbing agents pay for": a Cloudflare Worker that sells small, useful tool endpoints to AI agents, paid **per call** with
 [x402](https://docs.x402.org) on the XRP Ledger in **XRP or RLUSD** (via the t54 facilitator). It can also offer **USDC on Base**
 as a second option in the same 402 so EVM-only buyers and the Coinbase/PayAI Bazaar indexes can find it. A secondary
 marketplace lets other providers list their own APIs and get paid directly.
 
-> Status: works end to end on **XRPL testnet** (`xrpl:1`) running locally with `wrangler dev`. Nothing is deployed. No mainnet.
+> Status: works end to end on **XRPL testnet** (`xrpl:1`) running locally with `wrangler dev`. A mainnet config exists
+> (`wrangler.toml` → `[env.production]`) but **nothing is deployed** and no mainnet payment has been made.
 > Real testnet settlements: see [`e2e/RESULTS.md`](e2e/RESULTS.md).
 
 ## What it sells (v1)
@@ -60,7 +63,7 @@ agent signs XRPL Payment (x402-xrpl SDK, invoice-bound, SourceTag 804681468)
 | `/openapi.json` | OpenAPI 3.1 with `x-payment-info` (x402scan reads this first) |
 | `/llms.txt` | Plain-text guide for LLMs |
 | `/.well-known/trustline-merchant.txt` | Binds the domain to the payout wallet (t54 Trustline standing) |
-| `/dashboard`, `/api/stats` | Calls, revenue per service and per provider (set `DASHBOARD_TOKEN` to protect) |
+| `/dashboard`, `/api/stats` | Calls, revenue per service and per provider (production fails closed with 503 until the `DASHBOARD_TOKEN` secret is set) |
 
 Every 402 also carries the official `bazaar` extension (generated with `@x402/extensions/bazaar` `declareDiscoveryExtension`).
 
@@ -88,15 +91,15 @@ Open http://127.0.0.1:8787/dashboard for calls and revenue.
 Use any x402 v2 client. For XRPL: `npm i x402-xrpl` (or `pip install x402-xrpl`) and wrap fetch:
 ```ts
 import { x402Fetch } from "x402-xrpl"; import { Wallet } from "xrpl";
-const paid = x402Fetch({ wallet: Wallet.fromSeed(process.env.XRPL_SEED!), network: "xrpl:1" });
-const r = await paid("https://<gateway>/s/xrpl-data/prices?ids=ripple");
+const paid = x402Fetch({ wallet: Wallet.fromSeed(process.env.XRPL_SEED!), network: "xrpl:0" }); // "xrpl:1" + http://127.0.0.1:8787 for local testnet
+const r = await paid("https://agents.glitterchainscout.trade/s/xrpl-data/prices?ids=ripple"); // production = xrpl:0
 ```
 The SDK picks an option, signs an invoice-bound XRPL `Payment`, retries with `PAYMENT-SIGNATURE`, and the gateway returns `PAYMENT-RESPONSE` (`{success, transaction, network, payer}`).
 Claude/other MCP clients: see `mcp/README.md` (per-call and per-session spend caps built in).
 
 ## How a provider lists a service (secondary marketplace)
 ```bash
-curl -X POST https://<gateway>/api/services -H "authorization: Bearer $REGISTRY_ADMIN_TOKEN" -H 'content-type: application/json' -d '{
+curl -X POST https://agents.glitterchainscout.trade/api/services -H "authorization: Bearer $REGISTRY_ADMIN_TOKEN" -H 'content-type: application/json' -d '{
   "slug":"my-weather","name":"Weather","description":"…","upstream_url":"https://api.example.com/weather",
   "price_xrp":"0.001","price_rlusd":"0.001","pay_to":"rYourXRPLAddress","tags":["weather"]}'
 ```
@@ -109,16 +112,25 @@ should reject anything else. `REGISTRATION_MODE` = `admin` (default) | `open` | 
 3. *Custodial:* gateway is `payTo`, then pays providers out. Easy fee capture, but holding others' money brings money-transmission/compliance risk. Not built.
 Listing fees or a premium placement in `/services` are the other non-custodial routes.
 
-## Deploy (later — needs Johnny's go-ahead)
-Nothing has been deployed. When approved:
-1. Pick a name/domain; set `PUBLIC_BASE_URL`, `GATEWAY_NAME`, `CONTACT_URL`.
-2. `wrangler d1 create <db>` → put the id in `wrangler.toml`; `wrangler d1 migrations apply <db> --remote`.
-3. `wrangler secret put REGISTRY_ADMIN_TOKEN` and `DASHBOARD_TOKEN`.
-4. Stay on testnet first (public testnet preview), then for mainnet: `X402_NETWORK="xrpl:0"`, `FACILITATOR_URL="https://xrpl-facilitator-mainnet.t54.ai"`,
-   `RLUSD_ISSUER="rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De"`, `OWN_PAY_TO="rELk9NdWK29x3qmfw3mHrLi7L6GPbvhFPi"`, `EXPLORER_TX_URL="https://livenet.xrpl.org/transactions/"`, `ALLOW_MAINNET="true"`.
-   The receiving address needs an **RLUSD trust line** to accept RLUSD.
-5. Optional Base rail: `BASE_NETWORK="eip155:8453"`, `BASE_USDC="0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"`, `BASE_PAY_TO=<Johnny's EVM address>`.
-6. `wrangler deploy` (set `workers_dev`/routes deliberately).
+## Configs
+| | Default (`npm run dev`) | `--env production` |
+|---|---|---|
+| Worker | `glitter-agent-gate-dev` (never deployed) | `glitter-agent-gate` |
+| URL | http://127.0.0.1:8787 | https://agents.glitterchainscout.trade (Custom Domain, created on deploy) |
+| XRPL | `xrpl:1` testnet, t54 testnet facilitator, testnet RLUSD issuer | `xrpl:0` mainnet, t54 mainnet facilitator, RLUSD `rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De` |
+| XRP/RLUSD payTo | testnet wallet `rPdrpP…` | `rELk9NdWK29x3qmfw3mHrLi7L6GPbvhFPi` (RLUSD trust line verified) |
+| Base USDC | Base Sepolia `eip155:84532` | Base `eip155:8453`, USDC `0x8335…2913`, payTo `0xEd31…3d7a` |
+| Fee / registration | 0% / admin | 0% / admin |
+| Dashboard | open locally | needs `DASHBOARD_TOKEN` secret (fails closed) |
+| D1 | `glitter-agent-gate-dev` (local) | `glitter-agent-gate` (**not created yet**, id `PENDING_D1_CREATE`) |
+
+## Launch (needs Johnny's go-ahead for every step)
+1. `npx wrangler d1 create glitter-agent-gate` → paste the id into `[[env.production.d1_databases]]`.
+2. `npx wrangler d1 migrations apply glitter-agent-gate --env production --remote`
+3. `npx wrangler secret put REGISTRY_ADMIN_TOKEN --env production` and `npx wrangler secret put DASHBOARD_TOKEN --env production`
+4. `npx wrangler deploy --env production` → creates the `agents.glitterchainscout.trade` DNS record + certificate.
+5. Smoke test: `curl -i https://agents.glitterchainscout.trade/s/hello` must return 402 with `xrpl:0` and `payTo` `rELk9…`.
+6. Then list it (see `LISTING.md`).
 
 ## Costs
 - **Cloudflare:** Workers Free = 100k requests/day but only **10 ms CPU per request**. `xrpl-data`, `json-tools` and `hello` are I/O-bound and fit. `web-markdown` (DOM parsing) and `convert` (PDF/XLSX) can exceed 10 ms on big inputs, so plan on **Workers Paid ($5/month minimum)** once those get traffic. D1 free tier (5M row reads, 100k row writes/day) is plenty. Bundle ≈ 1.1 MB gzipped (under the 3 MB free limit). Check Cloudflare's pricing page before launch, these numbers can change.

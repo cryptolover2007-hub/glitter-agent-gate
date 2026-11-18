@@ -126,7 +126,7 @@ async function prices(q: URLSearchParams) {
   const cache = (globalThis as any).caches?.default as Cache | undefined;
   let r = cache ? await cache.match(url) : undefined;
   if (!r) {
-    r = await fetch(url, { headers: { accept: "application/json", "user-agent": "XRPLAgentTools/0.1 (+x402)" }, signal: AbortSignal.timeout(10000) });
+    r = await fetch(url, { headers: { accept: "application/json", "user-agent": "GlitterAgentGate/0.1 (+https://agents.glitterchainscout.trade)" }, signal: AbortSignal.timeout(10000) });
     if (!r.ok) throw new HttpError(502, `price source HTTP ${r.status}`);
     const copy = new Response(r.clone().body, { headers: { "content-type": "application/json", "cache-control": "max-age=60" } });
     if (cache) await cache.put(url, copy).catch(() => {});

@@ -62,7 +62,7 @@ export function agentCard(env: Env, origin: string, services: PaidService[]) {
     name: env.GATEWAY_NAME,
     description: "Paid tool endpoints for AI agents, settled per call with x402 on the XRP Ledger (XRP or RLUSD). Skills are plain HTTPS endpoints; the A2A interface returns call instructions and prices.",
     supportedInterfaces: [{ url: `${origin}/a2a`, protocolBinding: "JSONRPC", protocolVersion: "1.0" }],
-    provider: { organization: env.GATEWAY_NAME, url: origin },
+    provider: { organization: "Glitter Chain Scout", url: env.CONTACT_URL || origin },
     version: VERSION,
     documentationUrl: `${origin}/llms.txt`,
     capabilities: { streaming: false, pushNotifications: false, extendedAgentCard: false },

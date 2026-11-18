@@ -1,5 +1,5 @@
 {
-  "name": "x402-xrpl-gateway",
+  "name": "glitter-agent-gate",
   "version": "1.0.0",
   "description": "Pay-per-call agent tools over x402 on the XRP Ledger (XRP + RLUSD), Cloudflare Worker",
   "scripts": {
