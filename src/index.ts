@@ -1,3 +1,4 @@
+import { dailySummary } from "./notify";
 import type { Env, PaidService } from "./types";
 import { ownServices } from "./catalog";
 import { getListed, listedServices, proxyUpstream, registerService, deactivateService } from "./registry";
@@ -11,7 +12,10 @@ async function allServices(env: Env): Promise<PaidService[]> {
 }
 
 export default {
-  async fetch(req: Request, env: Env): Promise<Response> {
+  async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    ctx.waitUntil(dailySummary(env).catch((e) => console.warn("daily summary failed", String(e).slice(0, 120))));
+  },
+  async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(req.url);
     const origin = (env.PUBLIC_BASE_URL || url.origin).replace(/\/+$/, "");
     const p = url.pathname;
@@ -29,7 +33,7 @@ export default {
         if (!svc) return json({ error: "unknown service", catalog: `${origin}/services` }, 404);
         const publicUrl = `${origin}${p}${url.search}`;
         return await handlePaid(req, env, svc, subpath, publicUrl, (payer) =>
-          svc.kind === "own" ? svc.handler!(req, env, subpath) : proxyUpstream(req, env, svc, subpath, payer));
+          svc.kind === "own" ? svc.handler!(req, env, subpath) : proxyUpstream(req, env, svc, subpath, payer), ctx);
       }
 
       // ---- discovery ----

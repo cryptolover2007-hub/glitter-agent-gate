@@ -6,6 +6,7 @@
 // Flow (buyer-protective AND seller-protective): verify -> run handler -> settle -> release result.
 //   * handler fails  => nothing is settled, buyer is not charged, invoice re-opens.
 //   * settle fails   => result is withheld (402/409), so work is never given away for free.
+import { notifyPayment } from "./notify";
 import { declareDiscoveryExtension } from "@x402/extensions/bazaar";
 import type { Env, PaidService, RouteDoc } from "./types";
 import { corsHeaders, dropsToXrp, HttpError, json } from "./util";
@@ -146,7 +147,7 @@ function errorResponse(e: unknown): Response {
 
 /** Wrap a service handler with x402. */
 export async function handlePaid(req: Request, env: Env, svc: PaidService, subpath: string, publicUrl: string,
-  run: (payer: string) => Promise<Response>): Promise<Response> {
+  run: (payer: string) => Promise<Response>, ctx?: ExecutionContext): Promise<Response> {
   isMainnetAllowed(env);
   const sig = req.headers.get(HEADER_PAYMENT_SIGNATURE);
   // Malformed requests are never charged. With a payment attached we reject before verify/settle (400, nothing moves).
@@ -232,6 +233,7 @@ export async function handlePaid(req: Request, env: Env, svc: PaidService, subpa
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(invoiceId, svc.slug, svc.providerId, selected.payTo, payer, selected.asset, assetSymbol(selected), selected.amount, disp, feeBps, feeOwed, s.data.network ?? selected.network, tx, inv.resource, Date.now()),
   ]);
   await logCall(env, svc.slug, "paid", result.status);
+  notifyPayment(env, ctx, { service: svc.slug, amount: disp, asset: assetSymbol(selected), network: String(s.data.network ?? selected.network), payer, tx, at: Date.now() });
   const h = new Headers(result.headers);
   h.set(HEADER_PAYMENT_RESPONSE, b64encodeJson({ success: true, transaction: tx, network: s.data.network ?? selected.network, payer }));
   h.set("x-402-charged", "true");

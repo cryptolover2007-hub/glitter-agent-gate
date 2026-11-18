@@ -12,6 +12,9 @@ bindings = [{"type": "plain_text", "name": k, "text": v} for k, v in prod["vars"
 db = prod["d1_databases"][0]
 bindings.append({"type": "d1", "name": db["binding"], "id": db["database_id"]})
 bindings += [{"type": "secret_text", "name": k, "text": tok[k]} for k in ("REGISTRY_ADMIN_TOKEN", "DASHBOARD_TOKEN")]
+_wh = R + ".secrets/discord-payments-webhook.json"
+if os.path.exists(_wh):
+    bindings.append({"type": "secret_text", "name": "DISCORD_WEBHOOK_URL", "text": json.load(open(_wh))["DISCORD_WEBHOOK_URL"]})
 meta = {"main_module": "index.js", "compatibility_date": cfg["compatibility_date"], "compatibility_flags": cfg["compatibility_flags"],
         "bindings": bindings, "observability": {"enabled": True}}
 js = open("/tmp/bundle-prod/index.js", "rb").read()
@@ -24,8 +27,11 @@ code = """async () => {
  form.append('metadata', new Blob([JSON.stringify(meta)], {type:'application/json'}));
  form.append('index.js', new Blob([js], {type:'application/javascript+module'}), 'index.js');
  const r = await cloudflare.request({method:'PUT', path:`/accounts/${accountId}/workers/scripts/%s`, body: form});
- return {ok:r.success, id:r.result?.id, etag:r.result?.etag?.slice(0,12), size:js.byteLength};
-}""" % (json.dumps(b64), json.dumps(meta), prod["name"])
+ const crons = %s;
+ let sched = null;
+ if (crons.length) { const s = await cloudflare.request({method:'PUT', path:`/accounts/${accountId}/workers/scripts/%s/schedules`, body: crons.map(c => ({cron: c}))}); sched = s.result; }
+ return {ok:r.success, id:r.result?.id, etag:r.result?.etag?.slice(0,12), size:js.byteLength, schedules: sched};
+}""" % (json.dumps(b64), json.dumps(meta), prod["name"], json.dumps(prod.get("triggers", {}).get("crons", [])), prod["name"])
 out = R + ".secrets/deploy-code.js"
 with open(out, "w") as f: f.write(code)
 os.chmod(out, 0o600)

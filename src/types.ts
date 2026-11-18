@@ -21,6 +21,8 @@ export interface Env {
   EVM_FACILITATOR_URL: string;
   REQUIRE_DASHBOARD_TOKEN: string;
   MCP_REGISTRY_AUTH: string;
+  DAILY_SUMMARY?: string;
+  DISCORD_WEBHOOK_URL?: string;
   REGISTRY_ADMIN_TOKEN?: string; // secret (.dev.vars / wrangler secret)
   DASHBOARD_TOKEN?: string;      // secret; if set, /dashboard + /api/stats require it
 }
