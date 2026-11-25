@@ -25,6 +25,7 @@ export interface Env {
   SOLANA_PAY_TO?: string;   // Solana USDC receiving wallet (defaults to Johnny's on mainnet); "" disables the rail
   SOLANA_NETWORK?: string;  // CAIP-2, defaults to Solana mainnet when X402_NETWORK=xrpl:0, else devnet
   SOLANA_RPC_URL?: string;
+  SOLANA_RAIL?: string;       // "on" forces the Solana option, "off" disables it; unset = auto (on when payTo has a USDC token account)
   SOLANA_PAY_TO_ATA?: string; // USDC associated token account of SOLANA_PAY_TO (needed for non-default payTo)
   DISCORD_WEBHOOK_URL?: string;
   REGISTRY_ADMIN_TOKEN?: string; // secret (.dev.vars / wrangler secret)

@@ -70,7 +70,7 @@ export function buildAccepts(env: Env, svc: PaidService, invoiceId: string | nul
 export const SOLANA_MAINNET = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp";
 export const SOLANA_DEVNET = "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1";
 const USDC_MINT: Record<string, string> = { [SOLANA_MAINNET]: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", [SOLANA_DEVNET]: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU" };
-const SOLANA_RPCS: Record<string, string[]> = { [SOLANA_MAINNET]: ["https://solana-rpc.publicnode.com", "https://api.mainnet-beta.solana.com"], [SOLANA_DEVNET]: ["https://api.devnet.solana.com"] };
+const SOLANA_RPCS: Record<string, string[]> = { [SOLANA_MAINNET]: ["https://solana-mainnet.gateway.tatum.io", "https://solana-rpc.publicnode.com", "https://api.mainnet-beta.solana.com"], [SOLANA_DEVNET]: ["https://api.devnet.solana.com"] };
 // Associated token accounts (owner:mint -> ATA), precomputed with @solana-program/token findAssociatedTokenPda.
 const KNOWN_ATA: Record<string, string> = {
   "BuVzde1ALzT5ChiapZxYcJ6UPCSauyLLQWbecej7uyqt:EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v": "G8hZ9HxmnuCVNbj3XxkmP3DbgCmE4v1BYwPD5jxQUBkf",
@@ -88,13 +88,15 @@ function solConfig(env: Env) {
 /** Solana rail if enabled AND verified ready (call refreshSolanaRail() first in the request). */
 export function solanaRail(env: Env): { network: string; payTo: string; usdc: string; feePayer: string } | null {
   const c = solConfig(env);
-  if (!c.payTo || !c.usdc || !solState || solState.key !== c.network + c.payTo || !solState.ready) return null;
+  if (!c.payTo || !c.usdc || env.SOLANA_RAIL === "off") return null;
+  if (env.SOLANA_RAIL === "on") return { ...c, feePayer: solState?.feePayer ?? FEE_PAYER_FALLBACK[c.network] }; // manual override
+  if (!solState || solState.key !== c.network + c.payTo || !solState.ready) return null;
   return { ...c, feePayer: solState.feePayer };
 }
 /** Checks (cached 10 min per isolate) that payTo owns a USDC token account and reads PayAI's Solana feePayer. Never throws. */
 export async function refreshSolanaRail(env: Env, force = false): Promise<void> {
   const c = solConfig(env);
-  if (!c.payTo || !c.usdc) return;
+  if (!c.payTo || !c.usdc || env.SOLANA_RAIL === "off") return;
   const key = c.network + c.payTo;
   if (!force && solState && solState.key === key && Date.now() - solState.checkedAt < (solState.ready ? 600_000 : 120_000)) return;
   let ready = solState?.key === key ? solState.ready : false;
