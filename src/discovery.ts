@@ -1,10 +1,10 @@
 // Machine-readable discovery: service catalog, x402 Bazaar-format listing, /.well-known/x402 (XRPL AI Hub crawl),
 // A2A Agent Card, llms.txt and OpenAPI. Prices are advertised for network xrpl (XRP, RLUSD) and, if enabled, Base USDC.
 import type { Env, PaidService } from "./types";
-import { amountDisplay, assetSymbol, bazaarExtension, buildAccepts, resourceInfo } from "./x402";
+import { amountDisplay, assetSymbol, bazaarExtension, buildAccepts, resourceInfo, solanaRail } from "./x402";
 import { json } from "./util";
 
-export const VERSION = "0.1.0";
+export const VERSION = "1.1.0";
 const urlFor = (origin: string, svc: PaidService, path: string) => `${origin}/s/${svc.slug}${path}`;
 /** Probe-able URL for crawlers: routes with required query params get their documented example values, so a bare GET returns the 402 instead of a 400. */
 const probeUrlFor = (origin: string, svc: PaidService, r: { path: string; query?: Record<string, { required?: boolean; example?: string }> }) => {
@@ -19,8 +19,8 @@ function priceList(env: Env, svc: PaidService) {
 export function servicesCatalog(env: Env, origin: string, services: PaidService[]) {
   return {
     gateway: env.GATEWAY_NAME, version: VERSION, x402Version: 2,
-    networks: { xrpl: env.X402_NETWORK, base: env.BASE_PAY_TO ? env.BASE_NETWORK : null },
-    howToPay: "Call any endpoint. You get HTTP 402 with a PAYMENT-REQUIRED header (base64 JSON, x402 v2). Sign one of the accepts[] options (XRPL: presigned Payment via the x402-xrpl SDK) and retry with PAYMENT-SIGNATURE. Success returns PAYMENT-RESPONSE with the tx hash. Failed calls are not charged.",
+    networks: { xrpl: env.X402_NETWORK, base: env.BASE_PAY_TO ? env.BASE_NETWORK : null, solana: solanaRail(env)?.network ?? null },
+    howToPay: "Call any endpoint. You get HTTP 402 with a PAYMENT-REQUIRED header (base64 JSON, x402 v2). Sign one of the accepts[] options (USDC on Base or Solana: any x402 v2 client such as @x402/fetch or @x402/axios; XRPL: presigned Payment via the x402-xrpl SDK) and retry with PAYMENT-SIGNATURE. Success returns PAYMENT-RESPONSE with the tx hash. Failed calls are not charged.",
     services: services.map((s) => ({
       slug: s.slug, name: s.name, description: s.description, kind: s.kind, tags: s.tags,
       prices: priceList(env, s),
@@ -51,13 +51,13 @@ export function wellKnownX402(env: Env, origin: string, services: PaidService[])
   return {
     version: 1, x402Version: 2,
     name: env.GATEWAY_NAME,
-    description: "Pay-per-call tools for AI agents: web page to Markdown, XRPL/crypto data, file conversion and JSON utilities. Pay in XRP or RLUSD on the XRP Ledger via x402.",
+    description: "Pay-per-call tools for AI agents: XRPL token safety check, web page to Markdown, XRPL/crypto data, file conversion and JSON utilities. Pay with x402 in USDC (Base, Solana) or XRP/RLUSD (XRP Ledger).",
     resources: all.map(({ s, r }) => probeUrlFor(origin, s, r)),
     resourceDetails: all.map(({ s, r }) => ({
       url: probeUrlFor(origin, s, r), method: r.method, name: `${s.name}${r.path ? " " + r.path : ""}`, description: `${s.description} ${r.summary}.`,
       accepts: buildAccepts(env, s, null).map((a) => ({ network: a.network, asset: assetSymbol(a), amount: a.amount, amountDisplay: amountDisplay(a), payTo: a.payTo })),
     })),
-    instructions: `Call any resource, pay the 402 (x402 v2, exact scheme) in XRP or RLUSD on ${env.X402_NETWORK}, retry with PAYMENT-SIGNATURE. Docs: ${origin}/llms.txt`,
+    instructions: `Call any resource, pay the 402 (x402 v2, exact scheme) in USDC on Base${solanaRail(env) ? "/Solana" : ""} or XRP/RLUSD on ${env.X402_NETWORK}, retry with PAYMENT-SIGNATURE. Docs: ${origin}/llms.txt`,
   };
 }
 
@@ -65,7 +65,7 @@ export function wellKnownX402(env: Env, origin: string, services: PaidService[])
 export function agentCard(env: Env, origin: string, services: PaidService[]) {
   return {
     name: env.GATEWAY_NAME,
-    description: "Paid tool endpoints for AI agents, settled per call with x402 on the XRP Ledger (XRP or RLUSD). Skills are plain HTTPS endpoints; the A2A interface returns call instructions and prices.",
+    description: "Paid tool endpoints for AI agents, settled per call with x402: USDC on Base or Solana, or XRP/RLUSD on the XRP Ledger. Skills are plain HTTPS endpoints; the A2A interface returns call instructions and prices.",
     supportedInterfaces: [{ url: `${origin}/a2a`, protocolBinding: "JSONRPC", protocolVersion: "1.0" }],
     provider: { organization: "Glitter Chain Scout", url: env.CONTACT_URL || origin },
     version: VERSION,
@@ -97,7 +97,7 @@ export async function a2aRpc(req: Request, env: Env, origin: string, services: P
     result: { message: {
       role: "ROLE_AGENT", messageId: crypto.randomUUID(),
       parts: [
-        { text: `These skills are paid per call via x402 over HTTPS. Call the endpoint, pay the 402 in XRP or RLUSD on ${env.X402_NETWORK}, retry with PAYMENT-SIGNATURE.` },
+        { text: `These skills are paid per call via x402 over HTTPS. Call the endpoint, pay the 402 in USDC (Base${solanaRail(env) ? "/Solana" : ""}) or XRP/RLUSD on ${env.X402_NETWORK}, retry with PAYMENT-SIGNATURE.` },
         { data: { services: servicesCatalog(env, origin, chosen).services } },
       ],
     } },
@@ -107,11 +107,11 @@ export async function a2aRpc(req: Request, env: Env, origin: string, services: P
 export function llmsTxt(env: Env, origin: string, services: PaidService[]): string {
   const lines = [
     `# ${env.GATEWAY_NAME}`, "",
-    "> Pay-per-call tools for AI agents. No API keys or accounts: every endpoint uses x402 (HTTP 402). Pay in XRP or RLUSD on the XRP Ledger" + (env.BASE_PAY_TO ? " or USDC on Base" : "") + ". Calls that fail are not charged.", "",
-    `Network: ${env.X402_NETWORK}${env.X402_NETWORK === "xrpl:1" ? " (TESTNET - test funds only)" : ""}. Facilitator: t54 (${env.FACILITATOR_URL}).`, "",
+    "> Pay-per-call tools for AI agents. No API keys or accounts: every endpoint uses x402 (HTTP 402). Pay in USDC on Base" + (solanaRail(env) ? " or Solana" : "") + ", or XRP / RLUSD on the XRP Ledger. Calls that fail are not charged.", "",
+    `Networks: ${[env.BASE_PAY_TO ? env.BASE_NETWORK : "", solanaRail(env)?.network ?? "", env.X402_NETWORK].filter(Boolean).join(", ")}${env.X402_NETWORK === "xrpl:1" ? " (TESTNET - test funds only)" : ""}. Facilitators: PayAI for USDC (${env.EVM_FACILITATOR_URL || "https://facilitator.payai.network"}), t54 for XRPL (${env.FACILITATOR_URL}).`, "",
     "## How to pay",
     "1. Request an endpoint. You receive 402 + PAYMENT-REQUIRED (base64 JSON, x402 v2) with accepts[] options and an invoiceId.",
-    "2. Sign a presigned XRPL Payment for one option (npm/PyPI package `x402-xrpl`: x402Fetch / x402Purchase do this automatically).",
+    "2. Pick one option. USDC on Base/Solana: any x402 v2 client (`@x402/fetch`, `@x402/axios`) signs it automatically. XRPL: npm/PyPI `x402-xrpl` (x402Fetch / x402Purchase).",
     "3. Retry with header PAYMENT-SIGNATURE. Success returns 200 + PAYMENT-RESPONSE (tx hash).", "",
     "## Services",
     ...services.flatMap((s) => [
@@ -150,7 +150,7 @@ export function openapi(env: Env, origin: string, services: PaidService[]) {
       description: "x402 pay-per-call endpoints for AI agents. No API keys or accounts: call, receive 402 + PAYMENT-REQUIRED, pay, retry with PAYMENT-SIGNATURE.",
       contact: { name: "Glitter Chain Scout", url: env.CONTACT_URL || origin },
       license: { name: "MIT", identifier: "MIT" },
-      "x-guidance": `Every /s/* route is paid per call with x402 v2 (exact scheme). Options in each 402: XRP or RLUSD on ${env.X402_NETWORK} (t54 facilitator) and USDC on ${env.BASE_NETWORK || "Base"}. Failed calls are not charged; bad input is rejected before settlement. Prices: ${origin}/services. Guide: ${origin}/llms.txt`,
+      "x-guidance": `Every /s/* route is paid per call with x402 v2 (exact scheme). Options in each 402: USDC on ${env.BASE_NETWORK || "Base"}${solanaRail(env) ? " and " + solanaRail(env)!.network : ""} (PayAI facilitator) and XRP or RLUSD on ${env.X402_NETWORK} (t54 facilitator). Failed calls are not charged; bad input is rejected before settlement. Prices: ${origin}/services. Guide: ${origin}/llms.txt`,
     },
     servers: [{ url: origin }],
     paths,

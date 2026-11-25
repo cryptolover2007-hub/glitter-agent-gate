@@ -22,6 +22,10 @@ export interface Env {
   REQUIRE_DASHBOARD_TOKEN: string;
   MCP_REGISTRY_AUTH: string;
   DAILY_SUMMARY?: string;
+  SOLANA_PAY_TO?: string;   // Solana USDC receiving wallet (defaults to Johnny's on mainnet); "" disables the rail
+  SOLANA_NETWORK?: string;  // CAIP-2, defaults to Solana mainnet when X402_NETWORK=xrpl:0, else devnet
+  SOLANA_RPC_URL?: string;
+  SOLANA_PAY_TO_ATA?: string; // USDC associated token account of SOLANA_PAY_TO (needed for non-default payTo)
   DISCORD_WEBHOOK_URL?: string;
   REGISTRY_ADMIN_TOKEN?: string; // secret (.dev.vars / wrangler secret)
   DASHBOARD_TOKEN?: string;      // secret; if set, /dashboard + /api/stats require it

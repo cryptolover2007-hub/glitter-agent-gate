@@ -11,7 +11,7 @@ const KNOWN_ISSUERS: Record<string, Record<string, string>> = {
 function rpcUrl(env: Env, network: string) {
   return network === "testnet" ? env.XRPL_RPC_TESTNET : env.XRPL_RPC_MAINNET;
 }
-async function rpc(env: Env, network: string, method: string, params: Record<string, unknown>): Promise<any> {
+export async function rpc(env: Env, network: string, method: string, params: Record<string, unknown>): Promise<any> {
   const r = await fetch(rpcUrl(env, network), {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -26,7 +26,7 @@ async function rpc(env: Env, network: string, method: string, params: Record<str
   }
   return j.result;
 }
-function currencyCode(sym: string): string {
+export function currencyCode(sym: string): string {
   const s = sym.trim();
   if (/^[0-9A-Fa-f]{40}$/.test(s)) return s.toUpperCase();
   if (s.length === 3) return s.toUpperCase();
@@ -34,7 +34,7 @@ function currencyCode(sym: string): string {
   if (hex.length > 40) throw new HttpError(400, "currency symbol too long");
   return hex.padEnd(40, "0");
 }
-function displayCurrency(code: string): string {
+export function displayCurrency(code: string): string {
   if (code.length !== 40) return code;
   const bytes = code.match(/../g)!.map((h) => parseInt(h, 16)).filter((b) => b !== 0);
   const s = new TextDecoder().decode(new Uint8Array(bytes));

@@ -1,6 +1,6 @@
 {
   "name": "glitter-agent-gate-mcp",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "MCP server for Glitter Agent Gate: pay-per-call agent tools (web to Markdown, XRPL data, file conversion, JSON utils) paid with x402 in XRP or RLUSD on the XRP Ledger.",
   "type": "module",
   "bin": {

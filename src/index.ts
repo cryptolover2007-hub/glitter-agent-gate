@@ -2,7 +2,7 @@ import { dailySummary } from "./notify";
 import type { Env, PaidService } from "./types";
 import { ownServices } from "./catalog";
 import { getListed, listedServices, proxyUpstream, registerService, deactivateService } from "./registry";
-import { handlePaid, isMainnetAllowed } from "./x402";
+import { handlePaid, isMainnetAllowed, refreshSolanaRail } from "./x402";
 import { a2aRpc, agentCard, discoveryResources, llmsTxt, openapi, servicesCatalog, wellKnownX402 } from "./discovery";
 import { checkDashboardAuth, dashboardHtml, stats } from "./dashboard";
 import { corsHeaders, HttpError, json } from "./util";
@@ -37,6 +37,8 @@ export default {
       }
 
       // ---- discovery ----
+      if (p === "/robots.txt") return new Response(ROBOTS(origin), { headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "public, max-age=3600" } });
+      if (["/", "/services", "/discovery/resources", "/.well-known/x402", "/llms.txt", "/openapi.json", "/.well-known/agent-card.json", "/.well-known/agent.json", "/a2a"].includes(p)) await refreshSolanaRail(env);
       if (p === "/" ) return json({ name: env.GATEWAY_NAME, network: env.X402_NETWORK, docs: `${origin}/llms.txt`, services: `${origin}/services`, dashboard: `${origin}/dashboard` });
       if (p === "/services") return json(servicesCatalog(env, origin, await allServices(env)));
       if (p === "/discovery/resources") return json(discoveryResources(env, origin, await allServices(env), url.searchParams));
@@ -67,4 +69,15 @@ export default {
   },
 };
 
+const ROBOTS = (origin: string) => `# Glitter Agent Gate: x402 pay-per-call API for AI agents. Crawlers welcome.
+# Paid endpoints under /s/ answer HTTP 402 with x402 payment requirements (no charge for probing).
+User-agent: *
+Allow: /
+Disallow: /dashboard
+Disallow: /api/
+
+# Agent docs: ${origin}/llms.txt
+# x402 catalog: ${origin}/.well-known/x402
+# OpenAPI: ${origin}/openapi.json
+`;
 const FAVICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffd76a"/><stop offset="1" stop-color="#c77dff"/></linearGradient></defs><rect width="64" height="64" rx="14" fill="#14111f"/><path d="M44 22a14 14 0 1 0 2 14H33" fill="none" stroke="url(#g)" stroke-width="7" stroke-linecap="round"/><circle cx="49" cy="14" r="3" fill="#ffd76a"/></svg>`;

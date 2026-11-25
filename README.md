@@ -11,17 +11,22 @@ marketplace lets other providers list their own APIs and get paid directly.
 > Validated end to end on XRPL testnet (`xrpl:1`); no mainnet payment has been made yet. Local dev stays on testnet.
 > Real testnet settlements: see [`e2e/RESULTS.md`](e2e/RESULTS.md).
 
-## What it sells (v1)
+## What it sells (v1.1, market prices from 25 Nov 2026)
 
-| Slug | What | Price (XRP / RLUSD / USDC) | Johnny's range |
-|---|---|---|---|
-| `web-markdown` | Public web page → clean Markdown (Readability). Honors robots.txt. **No captcha/paywall/bot-protection bypass**; blocked pages return an error and are not charged. | 0.020436 / 0.02 / 0.02 | $0.01–0.03 |
-| `xrpl-data` | `/account` (balance, reserve, spendable, trust lines, last 10 txs), `/token` (issuer, supply, XRP AMM price), `/prices` (CoinGecko). Mainnet or testnet ledgers. | 0.002044 / 0.002 / 0.002 | $0.001–0.005 |
-| `convert` | PDF / CSV / TSV / XLSX / HTML → JSON or text. Raw bytes, or JSON `{url}` / `{content_base64}`. 10 MB max. | 0.051089 / 0.05 / 0.05 | $0.02–0.10 |
-| `json-tools` | Safe deterministic JSON ops (pick, flatten, sort_by, dedupe, to_csv…). No eval, no user regex. | 0.005109 / 0.005 / 0.005 | ~$0.005 (sandbox slot) |
-| `hello` | Smallest paid call, for testing clients. | 0.0001 / 0.0001 / 0.001 | — |
+Every 402 offers USDC on Base (`eip155:8453`) and XRP / RLUSD on the XRP Ledger (`xrpl:0`). USDC on Solana is added automatically
+once the Solana receiving wallet has a USDC token account (checked every 10 minutes; PayAI facilitator).
 
-XRP prices use US$0.9787/XRP (CoinGecko + Kraken live, 17 Nov 2026 23:55 ET), rounded up to whole drops. They are static in `src/catalog.ts`; re-check if XRP moves a lot.
+| Slug | What | Price (XRP / RLUSD / USDC) |
+|---|---|---|
+| `xrpl-token-safety` | XRPL issued-token risk check: freeze / global freeze / NoFreeze, clawback, require-auth, transfer fee, blackholed keys, XRP AMM depth + price, holder concentration. Risk level + plain-English flags. | 0.005454 / 0.005 / 0.005 |
+| `web-markdown` | Public web page → clean Markdown (Readability). Honors robots.txt. **No captcha/paywall/bot-protection bypass**; blocked pages return an error and are not charged. | 0.002182 / 0.002 / 0.002 |
+| `xrpl-data` | `/account` (balance, reserve, spendable, trust lines, last 10 txs), `/token` (issuer, supply, XRP AMM price), `/prices` (CoinGecko). Mainnet or testnet ledgers. | 0.001091 / 0.001 / 0.001 |
+| `convert` | PDF / CSV / TSV / XLSX / HTML → JSON or text. Raw bytes, or JSON `{url}` / `{content_base64}`. 10 MB max. | 0.005454 / 0.005 / 0.005 |
+| `json-tools` | Safe deterministic JSON ops (pick, flatten, sort_by, dedupe, to_csv…). No eval, no user regex. | 0.001091 / 0.001 / 0.001 |
+| `hello` | Smallest paid call, for testing clients. | 0.0001 / 0.0001 / 0.001 |
+
+XRP prices use US$0.917/XRP (CoinGecko, 25 Nov 2026), rounded up to whole drops. They are static in `src/catalog.ts`; re-check if XRP moves a lot.
+Every request that carries a payment is logged with its outcome (`payment_attempts` table, shown on `/dashboard`).
 A code sandbox is intentionally **not** in v1 (security risk). Later option: a locked-down sandbox on a separate Worker.
 
 ## Architecture

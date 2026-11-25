@@ -1,6 +1,6 @@
 {
   "name": "glitter-agent-gate",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Pay-per-call agent tools over x402 on the XRP Ledger (XRP + RLUSD), Cloudflare Worker",
   "scripts": {
     "dev": "wrangler dev --local --port 8787",
@@ -14,7 +14,9 @@
     "test:mcp": "tsx mcp/test-mcp.ts",
     "verify:txs": "node e2e/verify-txs.mjs",
     "mcp": "tsx mcp/src/index.ts",
-    "build:mcp": "cd mcp && esbuild src/index.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/index.js --packages=external"
+    "build:mcp": "cd mcp && esbuild src/index.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/index.js --packages=external",
+    "test:probe": "node e2e/probe402.mjs",
+    "test:clients": "tsx e2e/client-matrix.ts"
   },
   "keywords": [],
   "author": "",
@@ -37,6 +39,7 @@
     "@x402/core": "^2.31.0",
     "@x402/evm": "^2.31.0",
     "@x402/fetch": "^2.31.0",
+    "@x402/svm": "^2.31.0",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "viem": "^2.58.0",

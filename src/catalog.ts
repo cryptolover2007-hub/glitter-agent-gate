@@ -1,11 +1,12 @@
 // First-party paid services ("the plumbing agents pay for").
 // Prices follow Johnny's USD ranges, expressed in XRP / RLUSD / USDC.
-// XRP amounts assume ~US$0.98/XRP (CoinGecko, 17 Nov 2026) and MUST be re-checked before mainnet.
+// XRP amounts assume ~US$0.917/XRP (CoinGecko, 25 Nov 2026); re-check when XRP moves. Prices cut to market rates on 25 Nov 2026.
 import type { Env, PaidService } from "./types";
 import { webMarkdownHandler } from "./services/web-markdown";
 import { validateXrplData, xrplDataHandler } from "./services/xrpl-data";
 import { convertHandler, validateConvert } from "./services/convert";
 import { jsonToolsHandler, validateJsonTools } from "./services/json-tools";
+import { safetyHandler, validateSafety } from "./services/xrpl-safety";
 import { HttpError, json } from "./util";
 
 export function ownServices(env: Env): PaidService[] {
@@ -15,7 +16,7 @@ export function ownServices(env: Env): PaidService[] {
       slug: "web-markdown", kind: "own", providerId: "own", payTo,
       name: "Web page to clean Markdown",
       description: "Fetch a public web page and return clean Markdown (Readability main-content extraction), title, byline and word count. Honors robots.txt. Does not bypass logins, paywalls, captchas or bot protection; blocked pages return a clear error and are not charged.",
-      price: { xrpDrops: "20436", rlusd: "0.02", usdc: "0.02" },
+      price: { xrpDrops: "2182", rlusd: "0.002", usdc: "0.002" },
       tags: ["scrape", "markdown", "web", "readability", "llm-input"],
       validate: (req) => {
         const u = new URL(req.url).searchParams.get("url");
@@ -35,7 +36,7 @@ export function ownServices(env: Env): PaidService[] {
       slug: "xrpl-data", kind: "own", providerId: "own", payTo,
       name: "XRPL & crypto data feed",
       description: "Clean JSON from public sources: XRPL account summary (balance, reserve, spendable, trust lines, last 10 txs), XRPL token/issuer info with XRP AMM pool price, and spot prices from CoinGecko. Mainnet or testnet ledgers.",
-      price: { xrpDrops: "2044", rlusd: "0.002", usdc: "0.002" },
+      price: { xrpDrops: "1091", rlusd: "0.001", usdc: "0.001" },
       tags: ["xrpl", "crypto", "prices", "onchain-data", "rlusd"],
       validate: validateXrplData,
       handler: xrplDataHandler,
@@ -56,10 +57,31 @@ export function ownServices(env: Env): PaidService[] {
       ],
     },
     {
+      slug: "xrpl-token-safety", kind: "own", providerId: "own", payTo,
+      name: "XRPL token safety check",
+      description: "Risk check for any XRP Ledger issued token before you buy, hold or accept it: issuer freeze/global-freeze/NoFreeze, clawback, require-auth, transfer fee, blackholed or active issuer keys, XRP AMM pool depth and price, and holder concentration (top 1/top 10 share, AMM excluded). Returns a risk level with plain-English flags. Live from public XRPL nodes; informational, not financial advice.",
+      price: { xrpDrops: "5454", rlusd: "0.005", usdc: "0.005" },
+      tags: ["xrpl", "token-safety", "risk", "amm", "due-diligence"],
+      validate: (req) => validateSafety(req),
+      handler: (req, env) => safetyHandler(req, env),
+      routes: [{
+        path: "", method: "GET", summary: "Safety check an XRPL issued token",
+        query: {
+          currency: { type: "string", description: "Token symbol (e.g. SOLO) or 40-hex currency code", required: true, example: "RLUSD" },
+          issuer: { type: "string", description: "Issuer classic r-address (optional only for RLUSD)", example: "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De" },
+          network: { type: "string", description: "mainnet (default) or testnet", example: "mainnet" },
+        },
+        outputExample: { currency: "SOLO", issuer: "rsoLo2S1kiGeCcn6hCUXVrCpGMWLrRrLZz", riskLevel: "moderate",
+          riskFlags: [{ level: "medium", code: "freeze_possible", message: "Issuer has not set NoFreeze..." }],
+          issuerControls: { globalFreeze: false, noFreeze: false, clawbackEnabled: false, transferFeePct: 0, blackholed: true },
+          xrpAmm: { tvlXrp: 2400000, priceXrpPerToken: 0.21 }, holders: { counted: 2000, top10ExcludingAmmSharePct: 41.2 } },
+      }],
+    },
+    {
       slug: "convert", kind: "own", providerId: "own", payTo,
       name: "File to JSON/text converter",
       description: "Convert PDF, CSV/TSV, XLSX/XLS or HTML into structured JSON (rows, sheets, pages) or plain text. POST raw bytes, or JSON {\"url\": ...} / {\"content_base64\": ..., \"format\": ...}. Max 10 MB.",
-      price: { xrpDrops: "51089", rlusd: "0.05", usdc: "0.05" },
+      price: { xrpDrops: "5454", rlusd: "0.005", usdc: "0.005" },
       tags: ["pdf", "csv", "xlsx", "convert", "parse"],
       validate: (req) => validateConvert(req),
       handler: (req, env) => convertHandler(req, env),
@@ -74,7 +96,7 @@ export function ownServices(env: Env): PaidService[] {
       slug: "json-tools", kind: "own", providerId: "own", payTo,
       name: "Safe JSON transform utility",
       description: "Deterministic JSON transforms with no code execution: pick, get, flatten, filter_eq, sort_by, dedupe, limit, count, keys, to_csv. Up to 20 ops, 512 KB input.",
-      price: { xrpDrops: "5109", rlusd: "0.005", usdc: "0.005" },
+      price: { xrpDrops: "1091", rlusd: "0.001", usdc: "0.001" },
       tags: ["json", "transform", "csv", "utility"],
       validate: (req) => validateJsonTools(req),
       handler: (req) => jsonToolsHandler(req, null),
