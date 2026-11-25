@@ -16,7 +16,8 @@
     "mcp": "tsx mcp/src/index.ts",
     "build:mcp": "cd mcp && esbuild src/index.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/index.js --packages=external",
     "test:probe": "node e2e/probe402.mjs",
-    "test:clients": "tsx e2e/client-matrix.ts"
+    "test:clients": "tsx e2e/client-matrix.ts",
+    "test:notify": "tsx e2e/notify-tests.ts"
   },
   "keywords": [],
   "author": "",

@@ -76,6 +76,7 @@ agent signs XRPL Payment (x402-xrpl SDK, invoice-bound, SourceTag 804681468)
 | `/llms.txt` | Plain-text guide for LLMs |
 | `/.well-known/trustline-merchant.txt` | Binds the domain to the payout wallet (t54 Trustline standing) |
 | `/dashboard`, `/api/stats` | Calls, revenue per service and per provider (production fails closed with 503 until the `DASHBOARD_TOKEN` secret is set) |
+| `POST /api/notify-test` | Token-gated (same `DASHBOARD_TOKEN`) labelled TEST posts to the private Discord x402 section |
 
 Every 402 also carries the official `bazaar` extension (generated with `@x402/extensions/bazaar` `declareDiscoveryExtension`).
 

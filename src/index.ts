@@ -1,4 +1,4 @@
-import { dailySummary } from "./notify";
+import { dailySummary, notifyAlert } from "./notify";
 import type { Env, PaidService } from "./types";
 import { ownServices } from "./catalog";
 import { getListed, listedServices, proxyUpstream, registerService, deactivateService } from "./registry";
@@ -63,11 +63,20 @@ const worker = {
       // ---- dashboard ----
       if (p === "/api/stats") { checkDashboardAuth(req, env); return await stats(env); }
       if (p === "/dashboard") { checkDashboardAuth(req, env); return new Response(dashboardHtml(env), { headers: { "content-type": "text/html; charset=utf-8" } }); }
+      // Token-gated test posts to the private Discord section (labelled TEST). Same auth as the dashboard.
+      if (p === "/api/notify-test" && req.method === "POST") {
+        checkDashboardAuth(req, env);
+        notifyAlert(env, ctx, { kind: "internal_error", detail: "Operator-triggered test. Not a real outage.", test: true });
+        ctx.waitUntil(dailySummary(env, { test: true }).catch((e) => console.warn("test summary failed", String(e).slice(0, 120))));
+        return json({ ok: true, posted: ["alerts", "activity"], label: "TEST" });
+      }
 
       return json({ error: "not found" }, 404);
     } catch (e) {
       if (e instanceof HttpError) return json({ error: e.message }, e.status);
       console.error(e);
+      // Pathname only — never the query string (dashboard token may be in it).
+      notifyAlert(env, ctx, { kind: "internal_error", status: 500, detail: `${req.method} ${p}: ${String((e as any)?.message ?? e).slice(0, 180)}` });
       return json({ error: "internal_error" }, 500);
     }
   },

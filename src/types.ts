@@ -27,7 +27,10 @@ export interface Env {
   SOLANA_RPC_URL?: string;
   SOLANA_RAIL?: string;       // "on" forces the Solana option, "off" disables it; unset = auto (on when payTo has a USDC token account)
   SOLANA_PAY_TO_ATA?: string; // USDC associated token account of SOLANA_PAY_TO (needed for non-default payTo)
-  DISCORD_WEBHOOK_URL?: string;
+  DISCORD_WEBHOOK_URL?: string;       // kept bound (staff #stats); new posts do not use it
+  DISCORD_WEBHOOK_PAYMENTS?: string;  // private #agent-gate-payments
+  DISCORD_WEBHOOK_ALERTS?: string;    // private #agent-gate-alerts
+  DISCORD_WEBHOOK_ACTIVITY?: string;  // private #agent-gate-activity (daily summary)
   REGISTRY_ADMIN_TOKEN?: string; // secret (.dev.vars / wrangler secret)
   DASHBOARD_TOKEN?: string;
   BASE_RPC_URL?: string;      // optional preferred Base RPC (fallbacks are built in)

@@ -6,7 +6,7 @@
 // Flow (buyer-protective AND seller-protective): verify -> run handler -> settle -> release result.
 //   * handler fails  => nothing is settled, buyer is not charged, invoice re-opens.
 //   * settle fails   => result is withheld (402/409), so work is never given away for free.
-import { notifyPayment } from "./notify";
+import { isFacilitatorOutage, notifyAlert, notifyPayment } from "./notify";
 import { declareDiscoveryExtension } from "@x402/extensions/bazaar";
 import type { Env, PaidService, RouteDoc } from "./types";
 import { corsHeaders, dropsToXrp, HttpError, json } from "./util";
@@ -178,12 +178,16 @@ function facilitatorUrl(env: Env, network: string): string {
   throw new HttpError(400, `unsupported network ${network}`);
 }
 async function facilitator(env: Env, network: string, path: "/verify" | "/settle", body: unknown) {
-  const r = await fetch(facilitatorUrl(env, network).replace(/\/+$/, "") + path, {
-    method: "POST", headers: { "content-type": "application/json" }, body: canonicalJson(body), signal: AbortSignal.timeout(30000),
-  });
-  const text = await r.text();
-  let data: any; try { data = text ? JSON.parse(text) : undefined; } catch { data = undefined; }
-  return { ok: r.ok, status: r.status, data, extensionResponses: r.headers.get("EXTENSION-RESPONSES") };
+  try {
+    const r = await fetch(facilitatorUrl(env, network).replace(/\/+$/, "") + path, {
+      method: "POST", headers: { "content-type": "application/json" }, body: canonicalJson(body), signal: AbortSignal.timeout(30000),
+    });
+    const text = await r.text();
+    let data: any; try { data = text ? JSON.parse(text) : undefined; } catch { data = undefined; }
+    return { ok: r.ok, status: r.status, data, extensionResponses: r.headers.get("EXTENSION-RESPONSES") };
+  } catch (e) {
+    return { ok: false, status: 503, data: { error: "facilitator_unreachable", retryable: true, phase: path === "/verify" ? "verify" : "settle", reason: String(e).slice(0, 80) } };
+  }
 }
 
 function sameRequirement(a: Requirement, b: Requirement) {
@@ -300,6 +304,7 @@ export async function handlePaid(req: Request, env: Env, svc: PaidService, subpa
   if (!v.ok || v.data?.isValid !== true) {
     await logCall(env, svc.slug, "verify_failed", 402);
     await logAttempt(env, req, svc.slug, { stage: "verify", outcome: "verify_failed", status: v.status, network: selected.network, asset: assetSymbol(selected), amount: amountDisplay(selected), payer: v.data?.payer ?? payerHint(payload), detail: String(v.data?.invalidReason ?? v.data?.error ?? v.status) + (v.data?.invalidMessage ? ": " + String(v.data.invalidMessage).slice(0, 200) : "") });
+    if (isFacilitatorOutage(v)) notifyAlert(env, ctx, { kind: "facilitator_error", service: svc.slug, network: String(selected.network), status: v.status, detail: String(v.data?.reason ?? v.data?.error ?? v.status).slice(0, 180) });
     if (!v.ok && v.data?.retryable === true && v.data?.phase === "verify") return json({ error: v.data.reason ?? "facilitator_unavailable", retryable: true }, 503, { "retry-after": String(v.data.retryAfter ?? 30) });
     return paymentRequiredResponse({ x402Version: 2, error: `verify_failed:${v.data?.invalidReason ?? v.data?.error ?? v.status}`, resource: resourceInfo(svc, inv.resource), accepts: stored, extensions: bazaarExtension(route) });
   }
@@ -309,7 +314,10 @@ export async function handlePaid(req: Request, env: Env, svc: PaidService, subpa
 
   // 3) do the work
   let result: Response;
-  try { result = await run(String(v.data?.payer ?? "")); } catch (e) { result = errorResponse(e); }
+  try { result = await run(String(v.data?.payer ?? "")); } catch (e) {
+    result = errorResponse(e);
+    if (result.status >= 500) notifyAlert(env, ctx, { kind: "internal_error", service: svc.slug, status: result.status, detail: String((e as any)?.message ?? e).slice(0, 180) });
+  }
   if (result.status >= 400) {
     await env.DB.prepare("UPDATE invoices SET status='open' WHERE id=?").bind(invoiceId).run();
     await logCall(env, svc.slug, "handler_error", result.status);
@@ -327,6 +335,7 @@ export async function handlePaid(req: Request, env: Env, svc: PaidService, subpa
     await env.DB.prepare("UPDATE invoices SET status=? WHERE id=?").bind(unknown ? "processing" : "open", invoiceId).run();
     await logCall(env, svc.slug, "settle_failed", unknown ? 409 : 402);
     await logAttempt(env, req, svc.slug, { stage: "settle", outcome: unknown ? "settle_status_unknown" : "settle_failed", status: s.status, network: selected.network, asset: assetSymbol(selected), amount: amountDisplay(selected), payer: v.data?.payer, detail: String(s.data?.errorReason ?? s.data?.error ?? s.status) });
+    notifyAlert(env, ctx, { kind: isFacilitatorOutage(s) ? "facilitator_error" : (unknown ? "settle_status_unknown" : "settle_failed"), service: svc.slug, network: String(selected.network), status: s.status, detail: String(s.data?.errorReason ?? s.data?.error ?? s.data?.reason ?? s.status).slice(0, 180) });
     if (unknown) return json({ error: "settlement_status_unknown", retryable: false, invoiceId, hint: "reconcile the signed tx on-ledger before paying again" }, 409);
     return paymentRequiredResponse({ x402Version: 2, error: `settle_failed:${s.data?.errorReason ?? s.status}`, resource: resourceInfo(svc, inv.resource), accepts: stored, extensions: bazaarExtension(route) });
   }
@@ -376,12 +385,18 @@ async function handleV1(req: Request, env: Env, svc: PaidService, header: string
   if (!/^\d+$/.test(String(auth.value ?? "")) || BigInt(auth.value) < BigInt(r1.maxAmountRequired)) return fail(402, "underpaid", `amount ${auth.value} < ${r1.maxAmountRequired}`, auth.from);
   if (!/^0x[0-9a-fA-F]{64}$/.test(String(auth.nonce ?? ""))) return fail(400, "bad_nonce", "authorization.nonce must be 32-byte hex", auth.from);
   const v = await facilitator(env, env.BASE_NETWORK, "/verify", { x402Version: 1, paymentPayload: p, paymentRequirements: r1 });
-  if (!v.ok || v.data?.isValid !== true) return fail(402, "verify_failed", `verify_failed:${v.data?.invalidReason ?? v.data?.error ?? v.status}`, auth.from);
+  if (!v.ok || v.data?.isValid !== true) {
+    if (isFacilitatorOutage(v)) notifyAlert(env, _ctx, { kind: "facilitator_error", service: svc.slug, network: env.BASE_NETWORK, status: v.status, detail: String(v.data?.reason ?? v.data?.error ?? v.status).slice(0, 180) });
+    return fail(v.data?.retryable ? 503 : 402, "verify_failed", `verify_failed:${v.data?.invalidReason ?? v.data?.error ?? v.status}`, auth.from);
+  }
   const id = "v1:" + String(auth.nonce).toLowerCase(), now = Date.now();
   const claim = await env.DB.prepare("INSERT OR IGNORE INTO invoices (id, service_slug, resource, accepts_json, status, created_at, expires_at) VALUES (?,?,?,?, 'processing', ?, ?)").bind(id, svc.slug, resource, JSON.stringify([r1]), now, now + 86_400_000).run();
   if (claim.meta.changes !== 1) return fail(409, "authorization_already_used", "this payment authorization was already used", auth.from);
   const payer = String(v.data?.payer ?? auth.from ?? "");
-  let result: Response; try { result = await run(payer); } catch (e) { result = errorResponse(e); }
+  let result: Response; try { result = await run(payer); } catch (e) {
+    result = errorResponse(e);
+    if (result.status >= 500) notifyAlert(env, _ctx, { kind: "internal_error", service: svc.slug, status: result.status, detail: String((e as any)?.message ?? e).slice(0, 180) });
+  }
   if (result.status >= 400) {
     await env.DB.prepare("DELETE FROM invoices WHERE id=?").bind(id).run();
     await logCall(env, svc.slug, "handler_error", result.status);
@@ -393,6 +408,7 @@ async function handleV1(req: Request, env: Env, svc: PaidService, header: string
   if (!s.ok || s.data?.success !== true) {
     await env.DB.prepare("DELETE FROM invoices WHERE id=?").bind(id).run();
     await logCall(env, svc.slug, "settle_failed", 402);
+    notifyAlert(env, _ctx, { kind: isFacilitatorOutage(s) ? "facilitator_error" : "settle_failed", service: svc.slug, network: env.BASE_NETWORK, status: s.status, detail: String(s.data?.errorReason ?? s.data?.error ?? s.data?.reason ?? s.status).slice(0, 180) });
     return fail(402, "settle_failed", `settle_failed:${s.data?.errorReason ?? s.status}`, payer);
   }
   const tx = String(s.data.transaction ?? ""), disp = amountDisplay({ asset: "0x", amount: r1.maxAmountRequired });

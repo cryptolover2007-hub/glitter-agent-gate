@@ -50,11 +50,12 @@ workers_dev = false
 # Custom Domain: on `wrangler deploy --env production` Cloudflare creates the DNS record + certificate for
 # agents.glitterchainscout.trade (zone 037ec2b1d07e3d0ce8f6a971179778e6, verified free of records on 17 Nov 2026).
 routes = [ { pattern = "agents.glitterchainscout.trade", custom_domain = true } ]
-# Daily payments summary to the staff #stats Discord channel (14:00 UTC = 9:00 ET in winter). Webhook URL is the DISCORD_WEBHOOK_URL secret.
+# Daily summary to private #agent-gate-activity (14:00 UTC = 9:00 ET in winter), including $0 days. Secret: DISCORD_WEBHOOK_ACTIVITY.
+# DISCORD_WEBHOOK_URL (staff #stats) stays bound and is not written to. Payments -> DISCORD_WEBHOOK_PAYMENTS; errors -> DISCORD_WEBHOOK_ALERTS.
 triggers = { crons = ["0 14 * * *"] }
 
 [env.production.vars]
-DAILY_SUMMARY = "true"                       # 9:00 ET Discord summary, only when there were payments
+DAILY_SUMMARY = "true"                       # 9:00 ET Discord summary to #agent-gate-activity, including $0 days
 GATEWAY_NAME = "Glitter Agent Gate"
 X402_NETWORK = "xrpl:0"
 ALLOW_MAINNET = "true"
