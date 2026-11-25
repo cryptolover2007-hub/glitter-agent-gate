@@ -6,12 +6,13 @@ import { handlePaid, isMainnetAllowed, refreshSolanaRail } from "./x402";
 import { a2aRpc, agentCard, discoveryResources, llmsTxt, openapi, servicesCatalog, wellKnownX402 } from "./discovery";
 import { checkDashboardAuth, dashboardHtml, stats } from "./dashboard";
 import { corsHeaders, HttpError, json } from "./util";
+import { handleMcp } from "./mcp-http";
 
 async function allServices(env: Env): Promise<PaidService[]> {
   return [...ownServices(env), ...(await listedServices(env).catch(() => []))];
 }
 
-export default {
+const worker = {
   async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     ctx.waitUntil(dailySummary(env).catch((e) => console.warn("daily summary failed", String(e).slice(0, 120))));
   },
@@ -35,6 +36,9 @@ export default {
         return await handlePaid(req, env, svc, subpath, publicUrl, (payer) =>
           svc.kind === "own" ? svc.handler!(req, env, subpath) : proxyUpstream(req, env, svc, subpath, payer), ctx);
       }
+
+      // ---- hosted MCP ----
+      if (p === "/mcp") return await handleMcp(req, env, origin, ownServices(env), (r) => worker.fetch(r, env, ctx));
 
       // ---- discovery ----
       if (p === "/robots.txt") return new Response(ROBOTS(origin), { headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "public, max-age=3600" } });
@@ -69,6 +73,8 @@ export default {
   },
 };
 
+export default worker;
+
 const ROBOTS = (origin: string) => `# Glitter Agent Gate: x402 pay-per-call API for AI agents. Crawlers welcome.
 # Paid endpoints under /s/ answer HTTP 402 with x402 payment requirements (no charge for probing).
 User-agent: *
@@ -79,5 +85,6 @@ Disallow: /api/
 # Agent docs: ${origin}/llms.txt
 # x402 catalog: ${origin}/.well-known/x402
 # OpenAPI: ${origin}/openapi.json
+# MCP (streamable HTTP): ${origin}/mcp
 `;
 const FAVICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffd76a"/><stop offset="1" stop-color="#c77dff"/></linearGradient></defs><rect width="64" height="64" rx="14" fill="#14111f"/><path d="M44 22a14 14 0 1 0 2 14H33" fill="none" stroke="url(#g)" stroke-width="7" stroke-linecap="round"/><circle cx="49" cy="14" r="3" fill="#ffd76a"/></svg>`;

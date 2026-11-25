@@ -208,11 +208,25 @@ function payerHint(p: any): string | undefined {
   return undefined;
 }
 /** Every payment attempt (a request that carried PAYMENT-SIGNATURE) is recorded with its stage and outcome for the dashboard. */
+/** Rough caller type from user-agent + network owner (ASN org). No IP addresses are stored. */
+export function callerKind(ua: string, org: string): string {
+  const u = ua.toLowerCase(), o = org.toLowerCase();
+  if (/x402scan|bazaar|x402-?(index|observer|doctor|list)|agentic\.market|402index|p0-catalog|zerobot|brickbluebot/.test(u)) return "x402 directory";
+  if (/uptime|pingdom|statuscake|betteruptime|healthcheck|monitor/.test(u)) return "uptime monitor";
+  if (/googlebot|bingbot|gptbot|claudebot|perplexity|ccbot|bytespider|ahrefs|semrush|crawler|spider|bot\b/.test(u)) return "search/AI crawler";
+  if (/x402|coinbase|payai/.test(u)) return "x402 client";
+  if (/claude|openai|anthropic|langchain|crewai|autogen|mcp/.test(u)) return "AI agent";
+  if (/python|curl|wget|go-http|node|axios|undici|okhttp|java|httpx|aiohttp|postman|insomnia/.test(u)) return "script/developer";
+  if (/mozilla|chrome|safari|firefox/.test(u)) return "browser";
+  if (/amazon|google|microsoft|digitalocean|hetzner|ovh|linode|oracle|cloudflare/.test(o)) return "cloud server";
+  return "unknown";
+}
 export async function logAttempt(env: Env, req: Request, slug: string, a: { stage: string; outcome: string; status: number; network?: string; asset?: string; amount?: string; payer?: string; tx?: string; detail?: string }) {
   const cf: any = (req as any).cf ?? {};
-  await env.DB.prepare(`INSERT INTO payment_attempts (created_at, service_slug, stage, outcome, status, network, asset, amount, payer, tx_hash, detail, user_agent, as_org, country)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(Date.now(), slug, a.stage, a.outcome, a.status, a.network ?? null, a.asset ?? null, a.amount ?? null, a.payer ?? null, a.tx ?? null,
-    (a.detail ?? "").slice(0, 400) || null, (req.headers.get("user-agent") ?? "").slice(0, 200) || null, String(cf.asOrganization ?? "").slice(0, 80) || null, cf.country ?? null).run()
+  const ua = (req.headers.get("user-agent") ?? "").slice(0, 200), org = String(cf.asOrganization ?? "").slice(0, 80);
+  await env.DB.prepare(`INSERT INTO payment_attempts (created_at, service_slug, stage, outcome, status, network, asset, amount, payer, tx_hash, detail, user_agent, as_org, country, caller_kind)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(Date.now(), slug, a.stage, a.outcome, a.status, a.network ?? null, a.asset ?? null, a.amount ?? null, a.payer ?? null, a.tx ?? null,
+    (a.detail ?? "").slice(0, 400) || null, ua || null, org || null, cf.country ?? null, callerKind(ua, org)).run()
     .catch((e: unknown) => console.warn("attempt log failed", String(e).slice(0, 120)));
 }
 
@@ -242,6 +256,11 @@ export async function handlePaid(req: Request, env: Env, svc: PaidService, subpa
   await refreshSolanaRail(env);
   const ttl = Number(env.INVOICE_TTL_SECONDS || "600");
 
+  const v1 = !sig ? req.headers.get(HEADER_X_PAYMENT) : null;
+  if (v1) {
+    if (inputError) { await logAttempt(env, req, svc.slug, { stage: "precheck", outcome: "bad_input", status: 400, detail: inputError }); return json({ error: `invalid input (not charged): ${inputError}` }, 400); }
+    return handleV1(req, env, svc, v1, publicUrl, run, ctx);
+  }
   if (!sig) {
     const invoiceId = crypto.randomUUID().replace(/-/g, "").toUpperCase();
     const accepts = buildAccepts(env, svc, invoiceId);
@@ -251,6 +270,7 @@ export async function handlePaid(req: Request, env: Env, svc: PaidService, subpa
     // Opportunistic cleanup of old invoices.
     await env.DB.prepare("DELETE FROM invoices WHERE expires_at < ? AND status != 'processing'").bind(now - 3600_000).run().catch(() => {});
     await logCall(env, svc.slug, "payment_required", 402);
+    await logAttempt(env, req, svc.slug, { stage: "probe", outcome: inputError ? "payment_required_bad_input" : "payment_required", status: 402 });
     return paymentRequiredResponse({
       x402Version: 2,
       error: inputError ? `invalid_input: ${inputError}. Fix the request before paying (a paid request with bad input is rejected with 400 and not charged).` : `${HEADER_PAYMENT_SIGNATURE} header is required`,
@@ -264,7 +284,7 @@ export async function handlePaid(req: Request, env: Env, svc: PaidService, subpa
     return json({ error: outcome, ...extra }, status);
   };
   try { payload = b64decodeJson(sig); } catch { return reject(400, "invalid_payment_signature_header"); }
-  if (payload?.x402Version !== 2 || !payload.accepted) return reject(400, "invalid_x402_payload", payload?.x402Version === 1 ? { hint: "x402 v1 payloads are not accepted; use an x402 v2 client (@x402/fetch, @x402/axios, x402-xrpl)" } : {});
+  if (payload?.x402Version !== 2 || !payload.accepted) return reject(400, "invalid_x402_payload", payload?.x402Version === 1 ? { hint: "x402 v1 payloads go in the X-PAYMENT header (USDC on Base only); PAYMENT-SIGNATURE carries x402 v2" } : {});
   const invoiceId = String(payload.payload?.invoiceId ?? payload.accepted?.extra?.invoiceId ?? "");
   if (!invoiceId) return reject(400, "missing_invoiceId", { hint: "request the endpoint first and pay one of the accepts[] from that fresh 402" });
   const inv = await env.DB.prepare("SELECT * FROM invoices WHERE id = ?").bind(invoiceId).first<any>();
@@ -329,4 +349,65 @@ export async function handlePaid(req: Request, env: Env, svc: PaidService, subpa
   h.set("x-402-charged", "true");
   for (const [k, val] of Object.entries(corsHeaders())) h.set(k, val);
   return new Response(resultBody, { status: result.status, headers: h });
+}
+
+// ---------- x402 v1 (X-PAYMENT, USDC on Base, PayAI facilitator) ----------
+// v1 clients sign an EIP-3009 authorization against requirements built here. Each authorization nonce is claimed once in the
+// invoices table (atomic insert), so concurrent replays never run the handler twice. Same order as v2: verify -> run -> settle.
+export const HEADER_X_PAYMENT = "X-PAYMENT";
+const V1_NET: Record<string, string> = { "eip155:8453": "base", "eip155:84532": "base-sepolia" };
+export function v1Requirement(env: Env, svc: PaidService, resource: string) {
+  const network = V1_NET[env.BASE_NETWORK];
+  if (!network || !env.BASE_PAY_TO || !env.BASE_USDC || !svc.price.usdc || svc.kind !== "own") return null;
+  return { scheme: "exact", network, maxAmountRequired: usdcAtomic(svc.price.usdc), resource, description: svc.description.slice(0, 480), mimeType: "application/json",
+    payTo: env.BASE_PAY_TO, maxTimeoutSeconds: MAX_TIMEOUT_SECONDS, asset: env.BASE_USDC, extra: { name: env.BASE_NETWORK === "eip155:8453" ? "USD Coin" : "USDC", version: "2" } };
+}
+async function handleV1(req: Request, env: Env, svc: PaidService, header: string, resource: string, run: (payer: string) => Promise<Response>, _ctx?: ExecutionContext): Promise<Response> {
+  const r1 = v1Requirement(env, svc, resource);
+  const fail = async (status: number, outcome: string, detail: string, payer?: string) => {
+    await logAttempt(env, req, svc.slug, { stage: outcome.startsWith("settle") ? "settle" : outcome.startsWith("verify") ? "verify" : outcome === "handler_error_not_charged" ? "handler" : "precheck", outcome: "v1_" + outcome, status, network: r1?.network, asset: "USDC", amount: r1 ? amountDisplay({ asset: "0x", amount: r1.maxAmountRequired }) : undefined, payer, detail });
+    return json({ x402Version: 1, error: detail, accepts: r1 ? [r1] : [] }, status);
+  };
+  if (!r1) return fail(402, "not_offered", "x402 v1 is only accepted for USDC on Base; use x402 v2 for XRPL/Solana");
+  let p: any; try { p = b64decodeJson(header); } catch { return fail(400, "bad_header", "X-PAYMENT is not base64 JSON"); }
+  const auth = p?.payload?.authorization ?? {};
+  if (p?.x402Version !== 1 || p.scheme !== "exact" || p.network !== r1.network) return fail(402, "mismatch", `expected x402Version 1, scheme exact, network ${r1.network}`, auth.from);
+  if (String(auth.to ?? "").toLowerCase() !== r1.payTo.toLowerCase()) return fail(402, "wrong_payto", "payment is not addressed to this gateway", auth.from);
+  if (!/^\d+$/.test(String(auth.value ?? "")) || BigInt(auth.value) < BigInt(r1.maxAmountRequired)) return fail(402, "underpaid", `amount ${auth.value} < ${r1.maxAmountRequired}`, auth.from);
+  if (!/^0x[0-9a-fA-F]{64}$/.test(String(auth.nonce ?? ""))) return fail(400, "bad_nonce", "authorization.nonce must be 32-byte hex", auth.from);
+  const v = await facilitator(env, env.BASE_NETWORK, "/verify", { x402Version: 1, paymentPayload: p, paymentRequirements: r1 });
+  if (!v.ok || v.data?.isValid !== true) return fail(402, "verify_failed", `verify_failed:${v.data?.invalidReason ?? v.data?.error ?? v.status}`, auth.from);
+  const id = "v1:" + String(auth.nonce).toLowerCase(), now = Date.now();
+  const claim = await env.DB.prepare("INSERT OR IGNORE INTO invoices (id, service_slug, resource, accepts_json, status, created_at, expires_at) VALUES (?,?,?,?, 'processing', ?, ?)").bind(id, svc.slug, resource, JSON.stringify([r1]), now, now + 86_400_000).run();
+  if (claim.meta.changes !== 1) return fail(409, "authorization_already_used", "this payment authorization was already used", auth.from);
+  const payer = String(v.data?.payer ?? auth.from ?? "");
+  let result: Response; try { result = await run(payer); } catch (e) { result = errorResponse(e); }
+  if (result.status >= 400) {
+    await env.DB.prepare("DELETE FROM invoices WHERE id=?").bind(id).run();
+    await logCall(env, svc.slug, "handler_error", result.status);
+    await fail(result.status, "handler_error_not_charged", "not charged", payer);
+    const h = new Headers(result.headers); h.set("x-402-charged", "false"); return new Response(result.body, { status: result.status, headers: h });
+  }
+  const body = await result.arrayBuffer();
+  const s = await facilitator(env, env.BASE_NETWORK, "/settle", { x402Version: 1, paymentPayload: p, paymentRequirements: r1 });
+  if (!s.ok || s.data?.success !== true) {
+    await env.DB.prepare("DELETE FROM invoices WHERE id=?").bind(id).run();
+    await logCall(env, svc.slug, "settle_failed", 402);
+    return fail(402, "settle_failed", `settle_failed:${s.data?.errorReason ?? s.status}`, payer);
+  }
+  const tx = String(s.data.transaction ?? ""), disp = amountDisplay({ asset: "0x", amount: r1.maxAmountRequired });
+  await env.DB.batch([
+    env.DB.prepare("UPDATE invoices SET status='settled' WHERE id=?").bind(id),
+    env.DB.prepare(`INSERT OR IGNORE INTO settlements (invoice_id, service_slug, provider_id, pay_to, payer, asset, asset_symbol, amount, amount_display, fee_bps, fee_owed_display, network, tx_hash, resource, created_at)
+      VALUES (?,?,?,?,?,?,?,?,?,0,'0',?,?,?,?)`).bind(id, svc.slug, svc.providerId, r1.payTo, payer, r1.asset, "USDC", r1.maxAmountRequired, disp, env.BASE_NETWORK, tx, resource, Date.now()),
+  ]);
+  await logCall(env, svc.slug, "paid", result.status);
+  await logAttempt(env, req, svc.slug, { stage: "settle", outcome: "paid", status: result.status, network: env.BASE_NETWORK, asset: "USDC", amount: disp, payer, tx, detail: "x402 v1" });
+  notifyPayment(env, _ctx, { service: svc.slug, amount: disp, asset: "USDC", network: env.BASE_NETWORK, payer, tx, at: Date.now() });
+  const h = new Headers(result.headers);
+  h.set("X-PAYMENT-RESPONSE", b64encodeJson({ success: true, transaction: tx, network: r1.network, payer }));
+  h.set("x-402-charged", "true");
+  for (const [k, val] of Object.entries(corsHeaders())) h.set(k, val);
+  h.set("access-control-expose-headers", "payment-required, payment-response, x-payment-response, x-402-charged");
+  return new Response(body, { status: result.status, headers: h });
 }

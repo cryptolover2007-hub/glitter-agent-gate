@@ -1,0 +1,77 @@
+// SPDX-License-Identifier: MIT
+// Read-only honeypot/tax simulator. Never deployed: injected with eth_call state overrides (code + ETH balance).
+pragma solidity ^0.8.28;
+
+struct Route { address from; address to; bool stable; address factory; }
+struct V3P { address tokenIn; address tokenOut; uint24 fee; address recipient; uint256 amountIn; uint256 amountOutMinimum; uint160 sqrtPriceLimitX96; }
+interface IAero { function swapExactTokensForTokensSupportingFeeOnTransferTokens(uint256, uint256, Route[] calldata, address, uint256) external; }
+interface IV2 { function swapExactTokensForTokensSupportingFeeOnTransferTokens(uint256, uint256, address[] calldata, address, uint256) external; }
+interface IV3 { function exactInputSingle(V3P calldata) external payable returns (uint256); }
+
+contract Sim {
+    address constant WETH = 0x4200000000000000000000000000000000000006;
+    address constant USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
+    address constant V3R = 0x2626664c2603336E57B271c5C0b26F421741e481;
+    address constant V2R = 0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24;
+    address constant AERO = 0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43;
+    address constant AEROF = 0x420DD381b31aEf6683db6B902084cB0FFECe40Da;
+    address constant PROBE = 0x000000000000000000000000000000000000bEEF;
+
+    function bal(address t, address a) internal view returns (uint256 b) {
+        (bool ok, bytes memory d) = t.staticcall(abi.encodeWithSelector(0x70a08231, a));
+        if (ok && d.length >= 32) b = abi.decode(d, (uint256));
+    }
+    function call_(address t, bytes memory data) internal returns (bool ok, string memory err) {
+        bytes memory r; (ok, r) = t.call(data);
+        if (ok && r.length > 0 && r.length <= 32) { ok = abi.decode(r, (bool)); if (!ok) err = "returned false"; }
+        if (!ok && bytes(err).length == 0) err = reason(r);
+    }
+    function reason(bytes memory r) internal pure returns (string memory) {
+        if (r.length >= 68 && bytes4(r) == 0x08c379a0) { assembly { r := add(r, 4) } return abi.decode(r, (string)); }
+        if (r.length == 0) return "reverted (no reason)";
+        return "reverted (custom error)";
+    }
+    function routerOf(uint8 dex) internal pure returns (address) { return dex == 1 ? V3R : dex == 2 ? V2R : AERO; }
+    function swap(uint8 dex, address tin, address tout, uint256 amt, uint24 fee, bool stable) internal returns (bool, string memory) {
+        address r = routerOf(dex);
+        (bool ok, string memory e) = call_(tin, abi.encodeWithSelector(0x095ea7b3, r, type(uint256).max));
+        if (!ok) return (false, string.concat("approve failed: ", e));
+        bytes memory data;
+        if (dex == 1) data = abi.encodeWithSelector(IV3.exactInputSingle.selector, V3P(tin, tout, fee, address(this), amt, 0, 0));
+        else if (dex == 2) { address[] memory p = new address[](2); p[0] = tin; p[1] = tout; data = abi.encodeWithSelector(IV2.swapExactTokensForTokensSupportingFeeOnTransferTokens.selector, amt, 0, p, address(this), block.timestamp + 60); }
+        else { Route[] memory rt = new Route[](1); rt[0] = Route(tin, tout, stable, AEROF); data = abi.encodeWithSelector(IAero.swapExactTokensForTokensSupportingFeeOnTransferTokens.selector, amt, 0, rt, address(this), block.timestamp + 60); }
+        bytes memory res; (ok, res) = r.call(data);
+        return (ok, ok ? "" : reason(res));
+    }
+
+    /// r: [quoteIn, poolOut, got, xferSent, xferRecv, sellAmt, poolIn, quoteOut, stage]  stage: 0 ok, 1 buy fail, 2 transfer fail, 3 sell fail, 4 setup fail
+    function run(address token, address quote, address pool, uint8 dex, uint24 fee, bool stable, uint256 ethIn) external returns (uint256[9] memory r, string memory err) {
+        (bool ok,) = WETH.call{value: ethIn}(abi.encodeWithSelector(0xd0e30db0));
+        if (!ok) { r[8] = 4; return (r, "weth deposit failed"); }
+        if (quote == USDC) {
+            (ok, err) = swap(1, WETH, USDC, ethIn, 500, false);
+            if (!ok) { r[8] = 4; return (r, string.concat("WETH->USDC failed: ", err)); }
+        }
+        r[0] = bal(quote, address(this));
+        uint256 p0 = bal(token, pool); uint256 m0 = bal(token, address(this));
+        (ok, err) = swap(dex, quote, token, r[0], fee, stable);
+        if (!ok) { r[8] = 1; return (r, err); }
+        r[1] = p0 - bal(token, pool) ; r[2] = bal(token, address(this)) - m0;
+        if (r[2] == 0) { r[8] = 1; return (r, "bought 0 tokens"); }
+        r[3] = r[2] / 100;
+        if (r[3] > 0) {
+            uint256 b0 = bal(token, PROBE);
+            (ok, err) = call_(token, abi.encodeWithSelector(0xa9059cbb, PROBE, r[3]));
+            if (!ok) { r[8] = 2; return (r, err); }
+            r[4] = bal(token, PROBE) - b0;
+        }
+        r[5] = bal(token, address(this));
+        uint256 q0 = bal(quote, address(this)); uint256 ps0 = bal(token, pool);
+        (ok, err) = swap(dex, token, quote, r[5], fee, stable);
+        if (!ok) { r[8] = 3; return (r, err); }
+        uint256 ps1 = bal(token, pool); r[6] = ps1 > ps0 ? ps1 - ps0 : 0;
+        r[7] = bal(quote, address(this)) - q0;
+        return (r, "");
+    }
+    receive() external payable {}
+}

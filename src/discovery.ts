@@ -1,10 +1,10 @@
 // Machine-readable discovery: service catalog, x402 Bazaar-format listing, /.well-known/x402 (XRPL AI Hub crawl),
 // A2A Agent Card, llms.txt and OpenAPI. Prices are advertised for network xrpl (XRP, RLUSD) and, if enabled, Base USDC.
 import type { Env, PaidService } from "./types";
-import { amountDisplay, assetSymbol, bazaarExtension, buildAccepts, resourceInfo, solanaRail } from "./x402";
+import { amountDisplay, assetSymbol, bazaarExtension, buildAccepts, resourceInfo, solanaRail, v1Requirement } from "./x402";
 import { json } from "./util";
 
-export const VERSION = "1.1.0";
+export const VERSION = "1.2.0";
 const urlFor = (origin: string, svc: PaidService, path: string) => `${origin}/s/${svc.slug}${path}`;
 /** Probe-able URL for crawlers: routes with required query params get their documented example values, so a bare GET returns the 402 instead of a 400. */
 const probeUrlFor = (origin: string, svc: PaidService, r: { path: string; query?: Record<string, { required?: boolean; example?: string }> }) => {
@@ -20,11 +20,11 @@ export function servicesCatalog(env: Env, origin: string, services: PaidService[
   return {
     gateway: env.GATEWAY_NAME, version: VERSION, x402Version: 2,
     networks: { xrpl: env.X402_NETWORK, base: env.BASE_PAY_TO ? env.BASE_NETWORK : null, solana: solanaRail(env)?.network ?? null },
-    howToPay: "Call any endpoint. You get HTTP 402 with a PAYMENT-REQUIRED header (base64 JSON, x402 v2). Sign one of the accepts[] options (USDC on Base or Solana: any x402 v2 client such as @x402/fetch or @x402/axios; XRPL: presigned Payment via the x402-xrpl SDK) and retry with PAYMENT-SIGNATURE. Success returns PAYMENT-RESPONSE with the tx hash. Failed calls are not charged.",
+    howToPay: "Call any endpoint. You get HTTP 402 with a PAYMENT-REQUIRED header (base64 JSON, x402 v2). Sign one of the accepts[] options (USDC on Base or Solana: any x402 v2 client such as @x402/fetch or @x402/axios; XRPL: presigned Payment via the x402-xrpl SDK) and retry with PAYMENT-SIGNATURE. Success returns PAYMENT-RESPONSE with the tx hash. Failed calls are not charged. x402 v1 clients may pay USDC on Base by sending X-PAYMENT signed against the `x402v1` requirement listed per endpoint. MCP: POST " + origin + "/mcp.",
     services: services.map((s) => ({
       slug: s.slug, name: s.name, description: s.description, kind: s.kind, tags: s.tags,
       prices: priceList(env, s),
-      endpoints: s.routes.map((r) => ({ url: urlFor(origin, s, r.path), method: r.method, summary: r.summary, query: r.query ?? {}, body: r.body ?? null, outputExample: r.outputExample ?? null })),
+      endpoints: s.routes.map((r) => ({ url: urlFor(origin, s, r.path), method: r.method, summary: r.summary, query: r.query ?? {}, body: r.body ?? null, outputExample: r.outputExample ?? null, x402v1: v1Requirement(env, s, urlFor(origin, s, r.path)) })),
     })),
   };
 }
@@ -51,7 +51,7 @@ export function wellKnownX402(env: Env, origin: string, services: PaidService[])
   return {
     version: 1, x402Version: 2,
     name: env.GATEWAY_NAME,
-    description: "Pay-per-call tools for AI agents: XRPL token safety check, web page to Markdown, XRPL/crypto data, file conversion and JSON utilities. Pay with x402 in USDC (Base, Solana) or XRP/RLUSD (XRP Ledger).",
+    description: "Pay-per-call tools for AI agents: Base and XRPL token safety checks, Base honeypot/tax simulation, XRPL pre-send payment checks, Base and XRPL on-chain data, web page Markdown, summaries and field extraction, file conversion and JSON utilities. Pay with x402 in USDC (Base, Solana) or XRP/RLUSD (XRP Ledger).",
     resources: all.map(({ s, r }) => probeUrlFor(origin, s, r)),
     resourceDetails: all.map(({ s, r }) => ({
       url: probeUrlFor(origin, s, r), method: r.method, name: `${s.name}${r.path ? " " + r.path : ""}`, description: `${s.description} ${r.summary}.`,
@@ -112,7 +112,9 @@ export function llmsTxt(env: Env, origin: string, services: PaidService[]): stri
     "## How to pay",
     "1. Request an endpoint. You receive 402 + PAYMENT-REQUIRED (base64 JSON, x402 v2) with accepts[] options and an invoiceId.",
     "2. Pick one option. USDC on Base/Solana: any x402 v2 client (`@x402/fetch`, `@x402/axios`) signs it automatically. XRPL: npm/PyPI `x402-xrpl` (x402Fetch / x402Purchase).",
-    "3. Retry with header PAYMENT-SIGNATURE. Success returns 200 + PAYMENT-RESPONSE (tx hash).", "",
+    "3. Retry with header PAYMENT-SIGNATURE. Success returns 200 + PAYMENT-RESPONSE (tx hash).",
+    `x402 v1 (USDC on Base only): sign the \`x402v1\` requirement listed per endpoint in ${origin}/services and send it as X-PAYMENT; the 402 itself is x402 v2.`,
+    `MCP: streamable HTTP at ${origin}/mcp (tools/list, tools/call; pay via params._meta["x402/payment"]).`, "",
     "## Services",
     ...services.flatMap((s) => [
       `### ${s.name} (${s.slug})`, s.description,
@@ -121,7 +123,7 @@ export function llmsTxt(env: Env, origin: string, services: PaidService[]): stri
     ]),
     "## Machine-readable",
     `- Catalog: ${origin}/services`, `- x402 discovery (Bazaar format): ${origin}/discovery/resources`, `- x402 catalog: ${origin}/.well-known/x402`,
-    `- OpenAPI: ${origin}/openapi.json`, `- A2A Agent Card: ${origin}/.well-known/agent-card.json`, "",
+    `- OpenAPI: ${origin}/openapi.json`, `- A2A Agent Card: ${origin}/.well-known/agent-card.json`, `- MCP: ${origin}/mcp`, "",
   ];
   return lines.join("\n");
 }
@@ -133,7 +135,7 @@ export function openapi(env: Env, origin: string, services: PaidService[]) {
       operationId: `${s.slug}${r.path.replace(/\W+/g, "_")}`, summary: `${s.name}: ${r.summary}`, description: s.description, tags: [s.slug],
       parameters: Object.entries(r.query ?? {}).map(([name, q]) => ({ name, in: "query", required: !!q.required, description: q.description, schema: { type: q.type }, example: q.example })),
       // x402scan reads x-payment-info.protocols + price (USD); accepts lists the real on-chain options.
-      "x-payment-info": { protocols: [{ x402: { x402Version: 2, schemes: ["exact"] } }], price: { mode: "fixed", currency: "USD", amount: s.price.usdc ?? s.price.rlusd ?? "0" }, x402Version: 2, accepts: priceList(env, s) },
+      "x-payment-info": { protocols: [{ x402: { x402Version: 2, schemes: ["exact"] } }, ...(v1Requirement(env, s, urlFor(origin, s, r.path)) ? [{ x402: { x402Version: 1, schemes: ["exact"], header: "X-PAYMENT", network: "base" } }] : [])], price: { mode: "fixed", currency: "USD", amount: s.price.usdc ?? s.price.rlusd ?? "0" }, x402Version: 2, accepts: priceList(env, s) },
       responses: {
         "200": { description: "Paid result. PAYMENT-RESPONSE header carries the settlement tx.", content: { "application/json": { example: r.outputExample ?? {} } } },
         "402": { description: "Payment required. PAYMENT-REQUIRED header (base64 x402 v2 PaymentRequired).", headers: { "PAYMENT-REQUIRED": { schema: { type: "string" } } } },

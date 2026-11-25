@@ -45,7 +45,9 @@ export async function fetchPage(rawUrl: string, env: Env): Promise<{ finalUrl: s
       signal: AbortSignal.timeout(15000),
     });
     if (r.status >= 300 && r.status < 400 && r.headers.get("location")) {
-      u = assertPublicHttpUrl(new URL(r.headers.get("location")!, u).toString(), false);
+      const next = assertPublicHttpUrl(new URL(r.headers.get("location")!, u).toString(), false); // re-check every hop for private/local targets
+      if (next.origin !== u.origin && !(await robotsAllowed(next))) throw new HttpError(403, "robots.txt of the redirect target disallows fetching this URL");
+      u = next;
       continue;
     }
     if (!r.ok) throw new HttpError(502, `upstream page returned HTTP ${r.status}`);

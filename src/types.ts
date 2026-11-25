@@ -29,7 +29,10 @@ export interface Env {
   SOLANA_PAY_TO_ATA?: string; // USDC associated token account of SOLANA_PAY_TO (needed for non-default payTo)
   DISCORD_WEBHOOK_URL?: string;
   REGISTRY_ADMIN_TOKEN?: string; // secret (.dev.vars / wrangler secret)
-  DASHBOARD_TOKEN?: string;      // secret; if set, /dashboard + /api/stats require it
+  DASHBOARD_TOKEN?: string;
+  BASE_RPC_URL?: string;      // optional preferred Base RPC (fallbacks are built in)
+  AI?: { run(model: string, input: unknown): Promise<unknown> }; // optional Workers AI binding (not bound in v1.2; web-ai is extractive)
+  AI_DAILY_CAP?: string;      // daily cap on AI calls when AI is bound (atomic counter in gate_kv)      // secret; if set, /dashboard + /api/stats require it
 }
 
 export interface Price {

@@ -1,6 +1,6 @@
 {
   "name": "glitter-agent-gate",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Pay-per-call agent tools over x402 on the XRP Ledger (XRP + RLUSD), Cloudflare Worker",
   "scripts": {
     "dev": "wrangler dev --local --port 8787",
@@ -30,7 +30,8 @@
     "unpdf": "^2.2.1",
     "x402-xrpl": "^0.3.4",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
-    "xrpl": "^4.7.0"
+    "xrpl": "^4.7.0",
+    "viem": "^2.58.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20261118.1",
@@ -42,7 +43,6 @@
     "@x402/svm": "^2.31.0",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
-    "viem": "^2.58.0",
     "wrangler": "^4.164.0",
     "zod": "^4.6.7"
   },

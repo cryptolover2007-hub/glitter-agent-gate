@@ -11,13 +11,19 @@ marketplace lets other providers list their own APIs and get paid directly.
 > Validated end to end on XRPL testnet (`xrpl:1`); no mainnet payment has been made yet. Local dev stays on testnet.
 > Real testnet settlements: see [`e2e/RESULTS.md`](e2e/RESULTS.md).
 
-## What it sells (v1.1, market prices from 25 Nov 2026)
+## What it sells (v1.2, market prices from 25 Nov 2026)
 
 Every 402 offers USDC on Base (`eip155:8453`) and XRP / RLUSD on the XRP Ledger (`xrpl:0`). USDC on Solana is added automatically
 once the Solana receiving wallet has a USDC token account (checked every 10 minutes; PayAI facilitator).
 
 | Slug | What | Price (XRP / RLUSD / USDC) |
 |---|---|---|
+| `base-token-safety` | Base ERC-20 risk check: upgradeable proxy + admin, owner powers read from the real contract code (mint, pause, blacklist, fee setters, max-tx, trading switch), live paused(), Uniswap v2/v3 + Aerodrome pool liquidity, buy/transfer/sell simulation with taxes. RPC failures are not charged. | 0.010905 / 0.01 / 0.01 |
+| `base-honeypot` | Base honeypot / tax simulation only: eth_call with a state override (no keys, nothing sent) buys, transfers and sells through the deepest pool; returns canSell, buy/transfer/sell tax, round-trip loss. | 0.005453 / 0.005 / 0.005 |
+| `base-data` | `/balance`, `/token`, `/block`, `/tx`, `/transfers` on Base with 5 fallback RPCs. Empty results are 404 and not charged. | 0.002182 / 0.002 / 0.002 |
+| `xrpl-presend` | XRPL check before sending: account exists or amount covers reserve, destination tag required, DepositAuth, DisallowXRP, blackholed, and for tokens trust line / frozen line / global freeze / require-auth / limit. Verdict ok_to_send / send_with_caution / do_not_send. | 0.001091 / 0.001 / 0.001 |
+| `xrpl-more` | `/nfts`, `/amm`, `/orderbook`, `/history` on the XRP Ledger. Empty results are 404 and not charged. | 0.001091 / 0.001 / 0.001 |
+| `web-ai` | `/summary` (extractive key sentences) and `/extract` (named fields from page metadata / JSON-LD). robots.txt honoured, every redirect re-checked, no emails or phone numbers collected. | 0.005453 / 0.005 / 0.005 |
 | `xrpl-token-safety` | XRPL issued-token risk check: freeze / global freeze / NoFreeze, clawback, require-auth, transfer fee, blackholed keys, XRP AMM depth + price, holder concentration. Risk level + plain-English flags. | 0.005454 / 0.005 / 0.005 |
 | `web-markdown` | Public web page → clean Markdown (Readability). Honors robots.txt. **No captcha/paywall/bot-protection bypass**; blocked pages return an error and are not charged. | 0.002182 / 0.002 / 0.002 |
 | `xrpl-data` | `/account` (balance, reserve, spendable, trust lines, last 10 txs), `/token` (issuer, supply, XRP AMM price), `/prices` (CoinGecko). Mainnet or testnet ledgers. | 0.001091 / 0.001 / 0.001 |
@@ -61,7 +67,8 @@ agent signs XRPL Payment (x402-xrpl SDK, invoice-bound, SourceTag 804681468)
 
 | Path | What |
 |---|---|
-| `/services` | JSON catalog for agents (prices, endpoints, params, examples) |
+| `/services` | JSON catalog for agents (prices, endpoints, params, examples, `x402v1` requirement for USDC on Base) |
+| `/mcp` | Hosted MCP server (streamable HTTP, JSON-RPC, batches capped at 10). Pay via `params._meta["x402/payment"]`. |
 | `/discovery/resources` | x402 v2 spec §8.1 Bazaar-format listing (`?network=&payTo=&limit=&offset=`) |
 | `/.well-known/x402` | Fan-out catalog (URL list, x402scan format) — crawled hourly by the XRPL AI Hub once registered |
 | `/.well-known/agent-card.json` (+ legacy `/.well-known/agent.json`) | A2A v1.0 Agent Card; `/a2a` answers `SendMessage` with call instructions + prices |

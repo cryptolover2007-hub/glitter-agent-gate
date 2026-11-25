@@ -7,7 +7,7 @@ import { z } from "zod";
 import { Wallet } from "xrpl";
 import { x402Purchase, decodePaymentResponseHeader } from "x402-xrpl";
 var GATEWAY = (process.env.GATEWAY_URL ?? "https://agents.glitterchainscout.trade").replace(/\/+$/, "");
-var VERSION = "0.1.1";
+var VERSION = "0.3.0";
 var RLUSD_HEX = "524C555344000000000000000000000000000000";
 var MAX_XRP_PER_CALL = Number(process.env.MAX_XRP_PER_CALL ?? "0.1");
 var MAX_RLUSD_PER_CALL = Number(process.env.MAX_RLUSD_PER_CALL ?? "0.1");
@@ -145,7 +145,7 @@ server.registerTool("call_paid_service", {
 server.registerTool(
   "web_to_markdown",
   {
-    description: "Fetch one public web page and return clean Markdown plus title, byline and word count (Readability extraction; mode=full keeps the whole body). Honors robots.txt and never bypasses logins, paywalls or captchas; blocked pages return an error. Price about $0.02. Paid per call with x402 from your XRPL_SEED wallet (XRP or RLUSD, capped by MAX_*_PER_CALL and SESSION_BUDGET_*). Without a wallet it returns the price quote and charges nothing. Failed calls are not charged.",
+    description: "Fetch one public web page and return clean Markdown plus title, byline and word count (Readability extraction; mode=full keeps the whole body). Honors robots.txt and never bypasses logins, paywalls or captchas; blocked pages return an error. Price about $0.002. Paid per call with x402 from your XRPL_SEED wallet (XRP or RLUSD, capped by MAX_*_PER_CALL and SESSION_BUDGET_*). Without a wallet it returns the price quote and charges nothing. Failed calls are not charged.",
     inputSchema: { url: z.string().url().describe("Public http(s) page URL"), mode: z.enum(["readable", "full"]).optional(), asset: assetArg }
   },
   async ({ url, mode, asset }) => asText(await paidCall({ service: "web-markdown", query: { url, ...mode ? { mode } : {} }, asset }))
@@ -153,7 +153,7 @@ server.registerTool(
 server.registerTool(
   "xrpl_account_info",
   {
-    description: "Summarize an XRP Ledger account: XRP balance, reserve, spendable amount, trust lines (e.g. RLUSD) and the last 10 transactions, from mainnet (default) or testnet. Price about $0.002. Paid per call with x402 from your XRPL_SEED wallet (XRP or RLUSD, capped by MAX_*_PER_CALL and SESSION_BUDGET_*). Without a wallet it returns the price quote and charges nothing. Failed calls are not charged.",
+    description: "Summarize an XRP Ledger account: XRP balance, reserve, spendable amount, trust lines (e.g. RLUSD) and the last 10 transactions, from mainnet (default) or testnet. Price about $0.001. Paid per call with x402 from your XRPL_SEED wallet (XRP or RLUSD, capped by MAX_*_PER_CALL and SESSION_BUDGET_*). Without a wallet it returns the price quote and charges nothing. Failed calls are not charged.",
     inputSchema: { address: z.string().describe("Classic XRPL r-address"), network: z.enum(["mainnet", "testnet"]).optional(), asset: assetArg }
   },
   async ({ address, network, asset }) => asText(await paidCall({ service: "xrpl-data", path: "/account", query: { address, network: network ?? "mainnet" }, asset }))
@@ -161,7 +161,7 @@ server.registerTool(
 server.registerTool(
   "crypto_prices",
   {
-    description: "Get spot prices for comma-separated CoinGecko ids (default ripple,ripple-usd) in a quote currency (default usd). Price about $0.002. Paid per call with x402 from your XRPL_SEED wallet (XRP or RLUSD, capped by MAX_*_PER_CALL and SESSION_BUDGET_*). Without a wallet it returns the price quote and charges nothing. Failed calls are not charged.",
+    description: "Get spot prices for comma-separated CoinGecko ids (default ripple,ripple-usd) in a quote currency (default usd). Price about $0.001. Paid per call with x402 from your XRPL_SEED wallet (XRP or RLUSD, capped by MAX_*_PER_CALL and SESSION_BUDGET_*). Without a wallet it returns the price quote and charges nothing. Failed calls are not charged.",
     inputSchema: { ids: z.string().optional().describe("Comma-separated CoinGecko ids"), vs: z.string().optional().describe("Quote currency, e.g. usd"), asset: assetArg }
   },
   async ({ ids, vs, asset }) => asText(await paidCall({ service: "xrpl-data", path: "/prices", query: { ids: ids ?? "ripple,ripple-usd", vs: vs ?? "usd" }, asset }))
@@ -169,7 +169,7 @@ server.registerTool(
 server.registerTool(
   "convert_file",
   {
-    description: "Download a public PDF, CSV/TSV, XLSX/XLS or HTML file (max 10 MB) and convert it to structured JSON (rows, sheets, pages) or plain text. Price about $0.05. Paid per call with x402 from your XRPL_SEED wallet (XRP or RLUSD, capped by MAX_*_PER_CALL and SESSION_BUDGET_*). Without a wallet it returns the price quote and charges nothing. Failed calls are not charged.",
+    description: "Download a public PDF, CSV/TSV, XLSX/XLS or HTML file (max 10 MB) and convert it to structured JSON (rows, sheets, pages) or plain text. Price about $0.005. Paid per call with x402 from your XRPL_SEED wallet (XRP or RLUSD, capped by MAX_*_PER_CALL and SESSION_BUDGET_*). Without a wallet it returns the price quote and charges nothing. Failed calls are not charged.",
     inputSchema: { url: z.string().url().describe("Public file URL"), to: z.enum(["json", "text"]).optional(), format: z.enum(["pdf", "csv", "tsv", "xlsx", "xls", "html"]).optional(), asset: assetArg }
   },
   async ({ url, to, format, asset }) => asText(await paidCall({ service: "convert", method: "POST", query: to ? { to } : void 0, body: { url, ...format ? { format } : {} }, asset }))
@@ -177,9 +177,73 @@ server.registerTool(
 server.registerTool(
   "json_transform",
   {
-    description: "Apply a pipeline of deterministic JSON operations (pick, get, flatten, filter_eq, sort_by, dedupe, limit, count, keys, to_csv) to the given data. No code execution or regex. Price about $0.005. Paid per call with x402 from your XRPL_SEED wallet (XRP or RLUSD, capped by MAX_*_PER_CALL and SESSION_BUDGET_*). Without a wallet it returns the price quote and charges nothing. Failed calls are not charged.",
+    description: "Apply a pipeline of deterministic JSON operations (pick, get, flatten, filter_eq, sort_by, dedupe, limit, count, keys, to_csv) to the given data. No code execution or regex. Price about $0.001. Paid per call with x402 from your XRPL_SEED wallet (XRP or RLUSD, capped by MAX_*_PER_CALL and SESSION_BUDGET_*). Without a wallet it returns the price quote and charges nothing. Failed calls are not charged.",
     inputSchema: { data: z.any().describe("Input JSON (object or array)"), ops: z.array(z.record(z.string(), z.any())).describe('Operations in order, e.g. [{"op":"pick","fields":["a"]}]'), asset: assetArg }
   },
   async ({ data, ops, asset }) => asText(await paidCall({ service: "json-tools", method: "POST", body: { data, ops }, asset }))
+);
+server.registerTool(
+  "xrpl_token_safety",
+  {
+    description: "Safety-check an XRP Ledger issued token before buying, holding or accepting it: issuer freeze / global freeze / NoFreeze, clawback, require-auth, transfer fee, blackholed or active issuer keys, XRP AMM pool depth and price, and holder concentration. Returns a risk level with plain-English flags (informational, not financial advice). Price about $0.005. Paid per call with x402 from your XRPL_SEED wallet (XRP or RLUSD, capped by MAX_*_PER_CALL and SESSION_BUDGET_*). Without a wallet it returns the price quote and charges nothing. Failed calls are not charged.",
+    inputSchema: { currency: z.string().describe("Token symbol (e.g. SOLO) or 40-hex currency code"), issuer: z.string().optional().describe("Issuer r-address (optional only for RLUSD)"), network: z.enum(["mainnet", "testnet"]).optional(), asset: assetArg },
+    annotations: { title: "XRPL token safety check", readOnlyHint: true, openWorldHint: true }
+  },
+  async ({ currency, issuer, network, asset }) => asText(await paidCall({ service: "xrpl-token-safety", query: { currency, ...issuer ? { issuer } : {}, network: network ?? "mainnet" }, asset }))
+);
+var clean = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== void 0 && v !== "").map(([k, v]) => [k, String(v)]));
+server.registerTool(
+  "base_token_safety",
+  {
+    description: "Safety-check an ERC-20 token on Base before buying: upgradeable proxy and admin, owner powers found in the real contract code (mint, pause, blacklist, fee setters, max-tx, trading switch), Uniswap v2/v3 and Aerodrome pool liquidity, and a buy/transfer/sell simulation measuring taxes and honeypot behaviour. Informational, not financial advice. Price about $0.01. Paid per call with x402 from your XRPL_SEED wallet (XRP or RLUSD, capped by MAX_*_PER_CALL and SESSION_BUDGET_*). Without a wallet it returns the price quote and charges nothing. Failed calls are not charged.",
+    inputSchema: { address: z.string().describe("0x token contract on Base"), asset: assetArg },
+    annotations: { title: "Base token safety check", readOnlyHint: true, openWorldHint: true }
+  },
+  async ({ address, asset }) => asText(await paidCall({ service: "base-token-safety", query: { address }, asset }))
+);
+server.registerTool(
+  "base_honeypot_check",
+  {
+    description: "Simulate buying, transferring and selling a Base ERC-20 token against its deepest Uniswap/Aerodrome pool (read-only eth_call, no keys, nothing is sent). Returns canBuy/canSell, buy/transfer/sell tax and round-trip loss. Price about $0.005. Paid per call with x402 from your XRPL_SEED wallet (XRP or RLUSD, capped by MAX_*_PER_CALL and SESSION_BUDGET_*). Without a wallet it returns the price quote and charges nothing. Failed calls are not charged.",
+    inputSchema: { address: z.string().describe("0x token contract on Base"), asset: assetArg },
+    annotations: { title: "Base honeypot / tax simulation", readOnlyHint: true, openWorldHint: true }
+  },
+  async ({ address, asset }) => asText(await paidCall({ service: "base-honeypot", query: { address }, asset }))
+);
+server.registerTool(
+  "base_data",
+  {
+    description: "Base chain data: balance (ETH + optional token), token (metadata and supply), block (latest or a number), tx (receipt and decoded transfers), transfers (recent ERC-20 transfers, optionally for one wallet). Empty results are not charged. Price about $0.002. Paid per call with x402 from your XRPL_SEED wallet (XRP or RLUSD, capped by MAX_*_PER_CALL and SESSION_BUDGET_*). Without a wallet it returns the price quote and charges nothing. Failed calls are not charged.",
+    inputSchema: { route: z.enum(["balance", "token", "block", "tx", "transfers"]), address: z.string().optional(), token: z.string().optional(), hash: z.string().optional(), number: z.string().optional(), wallet: z.string().optional(), limit: z.number().optional(), asset: assetArg },
+    annotations: { title: "Base on-chain data", readOnlyHint: true, openWorldHint: true }
+  },
+  async ({ route, asset, ...q }) => asText(await paidCall({ service: "base-data", path: "/" + route, query: clean(q), asset }))
+);
+server.registerTool(
+  "xrpl_more",
+  {
+    description: "More XRP Ledger data: nfts (an account's NFTs), amm (AMM pool for two assets), orderbook (DEX offers), history (recent transactions). Assets are XRP or CODE.rIssuer. Empty results are not charged. Price about $0.001. Paid per call with x402 from your XRPL_SEED wallet (XRP or RLUSD, capped by MAX_*_PER_CALL and SESSION_BUDGET_*). Without a wallet it returns the price quote and charges nothing. Failed calls are not charged.",
+    inputSchema: { route: z.enum(["nfts", "amm", "orderbook", "history"]), address: z.string().optional(), asset1: z.string().optional(), asset2: z.string().optional(), base: z.string().optional(), quote: z.string().optional(), limit: z.number().optional(), network: z.enum(["mainnet", "testnet"]).optional(), asset: assetArg },
+    annotations: { title: "XRPL NFTs, AMM, order book, history", readOnlyHint: true, openWorldHint: true }
+  },
+  async ({ route, asset, ...q }) => asText(await paidCall({ service: "xrpl-more", path: "/" + route, query: clean(q), asset }))
+);
+server.registerTool(
+  "xrpl_presend_check",
+  {
+    description: "Check an XRPL destination BEFORE sending: account exists or the amount covers the reserve, destination tag required, DepositAuth, DisallowXRP, blackholed, and for tokens the trust line, frozen line, global freeze, require-auth and limit. Returns ok_to_send / send_with_caution / do_not_send. Price about $0.001. Paid per call with x402 from your XRPL_SEED wallet (XRP or RLUSD, capped by MAX_*_PER_CALL and SESSION_BUDGET_*). Without a wallet it returns the price quote and charges nothing. Failed calls are not charged.",
+    inputSchema: { destination: z.string().describe("Destination r-address"), amount: z.string().optional(), currency: z.string().optional(), issuer: z.string().optional(), tag: z.string().optional(), source: z.string().optional(), network: z.enum(["mainnet", "testnet"]).optional(), asset: assetArg },
+    annotations: { title: "XRPL pre-send address check", readOnlyHint: true, openWorldHint: true }
+  },
+  async ({ asset, ...q }) => asText(await paidCall({ service: "xrpl-presend", query: clean(q), asset }))
+);
+server.registerTool(
+  "web_summary",
+  {
+    description: "Summarize a public web page (extractive key sentences, robots.txt honoured, no logins or paywalls) or extract named fields from its metadata. No emails or phone numbers are collected. Price about $0.005. Paid per call with x402 from your XRPL_SEED wallet (XRP or RLUSD, capped by MAX_*_PER_CALL and SESSION_BUDGET_*). Without a wallet it returns the price quote and charges nothing. Failed calls are not charged.",
+    inputSchema: { url: z.string().url(), mode: z.enum(["summary", "extract"]).optional(), fields: z.string().optional().describe("Comma-separated fields for extract, e.g. title,author,price"), length: z.enum(["short", "medium", "long"]).optional(), asset: assetArg },
+    annotations: { title: "Web page summary / extract", readOnlyHint: true, openWorldHint: true }
+  },
+  async ({ url, mode, fields, length, asset }) => asText(await paidCall({ service: "web-ai", path: mode === "extract" ? "/extract" : "/summary", query: clean({ url, fields, length }), asset }))
 );
 await server.connect(new StdioServerTransport());

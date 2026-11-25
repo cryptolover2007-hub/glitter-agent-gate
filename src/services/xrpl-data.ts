@@ -8,23 +8,26 @@ const KNOWN_ISSUERS: Record<string, Record<string, string>> = {
   testnet: { RLUSD: "rQhWct2fv4Vc4KRjRgMrxa8xPN9Zx9iLKV" },
 };
 
-function rpcUrl(env: Env, network: string) {
-  return network === "testnet" ? env.XRPL_RPC_TESTNET : env.XRPL_RPC_MAINNET;
-}
+const MAINNET_FALLBACKS = ["https://xrplcluster.com/", "https://s1.ripple.com:51234/", "https://s2.ripple.com:51234/"];
+/** XRPL JSON-RPC with fallback nodes on mainnet. Node outages throw 502 (paid calls are then not settled). */
 export async function rpc(env: Env, network: string, method: string, params: Record<string, unknown>): Promise<any> {
-  const r = await fetch(rpcUrl(env, network), {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ method, params: [params] }),
-    signal: AbortSignal.timeout(10000),
-  });
-  if (!r.ok) throw new HttpError(502, `XRPL node HTTP ${r.status}`);
-  const j: any = await r.json();
-  if (j.result?.status === "error") {
-    if (j.result.error === "actNotFound") throw new HttpError(404, "account not found on this network");
-    throw new HttpError(502, `XRPL error: ${j.result.error}`);
+  const urls = network === "testnet" ? [env.XRPL_RPC_TESTNET] : [...new Set([env.XRPL_RPC_MAINNET, ...MAINNET_FALLBACKS].filter(Boolean))];
+  let last = "";
+  for (const url of urls) {
+    let j: any;
+    try {
+      const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ method, params: [params] }), signal: AbortSignal.timeout(10000) });
+      if (!r.ok) { last = `XRPL node HTTP ${r.status}`; continue; }
+      j = await r.json();
+    } catch (e) { last = `XRPL node unreachable (${String((e as any)?.message ?? e).slice(0, 60)})`; continue; }
+    if (j.result?.status === "error") {
+      if (j.result.error === "actNotFound") throw new HttpError(404, "account not found on this network");
+      if (["tooBusy", "noNetwork", "noCurrent", "noClosed", "amendmentBlocked", "slowDown"].includes(j.result.error)) { last = `XRPL error: ${j.result.error}`; continue; }
+      throw new HttpError(502, `XRPL error: ${j.result.error}`);
+    }
+    return j.result;
   }
-  return j.result;
+  throw new HttpError(502, last || "XRPL nodes unavailable");
 }
 export function currencyCode(sym: string): string {
   const s = sym.trim();

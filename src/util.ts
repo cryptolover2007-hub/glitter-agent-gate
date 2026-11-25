@@ -7,8 +7,8 @@ export function json(data: unknown, status = 200, headers: HeadersInit = {}): Re
 export function corsHeaders(): Record<string, string> {
   return {
     "access-control-allow-origin": "*",
-    "access-control-allow-headers": "content-type, payment-signature, authorization",
-    "access-control-expose-headers": "payment-required, payment-response, x-402-charged, x-correlation-id",
+    "access-control-allow-headers": "content-type, payment-signature, x-payment, authorization, mcp-session-id, mcp-protocol-version",
+    "access-control-expose-headers": "payment-required, payment-response, x-payment-response, x-402-charged, x-correlation-id",
     "access-control-allow-methods": "GET, POST, OPTIONS",
   };
 }
