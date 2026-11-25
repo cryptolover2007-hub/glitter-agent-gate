@@ -1,6 +1,7 @@
 // Builds a real payment with the official client for EVERY network in the 402, using fresh UNFUNDED keys,
 // and sends it to the gateway. Expected: facilitator verify runs and refuses for balance/unfunded -> nothing can move.
 // Usage: tsx clients.ts <base> [path]
+import "./selftest-ua.mjs";
 import { x402Client, x402HTTPClient } from "@x402/core/client";
 import { ExactEvmScheme } from "@x402/evm";
 import { ExactSvmScheme } from "@x402/svm";

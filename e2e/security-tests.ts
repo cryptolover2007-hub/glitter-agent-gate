@@ -1,4 +1,5 @@
 // Negative tests against the local gateway on TESTNET: replay, underpayment, cross-service invoice reuse.
+import "./selftest-ua.mjs";
 import fs from "node:fs";
 import { Wallet } from "xrpl";
 import { XRPLPresignedPaymentPayer, paymentRequiredFromWire } from "x402-xrpl";

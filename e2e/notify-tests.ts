@@ -1,5 +1,6 @@
 // Local tests for Discord notify helpers: $0-day summary, probe exclusion, rate limits, no IPs.
 import assert from "node:assert/strict";
+import { callerKind } from "../src/x402.ts";
 import { allowAlert, alertEmbed, dailySummary, isFacilitatorOutage, notifyAlert, notifyPayment, summaryEmbed } from "../src/notify.ts";
 import type { Env } from "../src/types.ts";
 
@@ -52,7 +53,12 @@ class MemD1 {
       return v == null ? [] : [{ v }];
     }
     const since = Number(binds[0] ?? 0);
-    const attempts = this.attempts.filter((r) => Number(r.created_at) >= since);
+    const inWindow = this.attempts.filter((r) => Number(r.created_at) >= since);
+    if (sql.includes("FROM payment_attempts") && sql.includes("caller_kind = 'self-test'")) {
+      const self = inWindow.filter((r) => r.caller_kind === "self-test");
+      return [{ calls: self.length, attempts: self.filter((r) => r.stage !== "probe").length }];
+    }
+    const attempts = sql.includes("!= 'self-test'") ? inWindow.filter((r) => r.caller_kind !== "self-test") : inWindow;
     if (sql.includes("FROM payment_attempts") && sql.includes("COUNT(*) AS calls")) {
       const calls = attempts.length;
       const probes = attempts.filter((r) => r.stage === "probe").length;
@@ -131,7 +137,7 @@ await check("$0-day summary embed still posts and has zero counts", () => {
   assert.match(e.title, /0 calls, 0 paid/);
   assert.match(e.description ?? "", /No payment attempts/);
   const names = e.fields.map((f) => f.name);
-  assert.deepEqual(names, ["Calls", "Probes (unpaid 402)", "Payment attempts", "Paid", "Unpaid attempts", "Failures by outcome", "Top tools"]);
+  assert.deepEqual(names, ["Calls", "Probes (unpaid 402)", "Payment attempts", "Paid", "Unpaid attempts", "Self-tests", "Failures by outcome", "Top tools"]);
 });
 
 await check("summary excludes probes from attempts and lists failures + top tools", () => {
@@ -247,6 +253,41 @@ await check("dailySummary counts probes separately and ignores them in attempts"
   assert.equal(field("Unpaid attempts"), "1");
   assert.match(field("Failures by outcome"), /settle_failed/);
   assert.doesNotMatch(JSON.stringify(embed), /\b(?:\d{1,3}\.){3}\d{1,3}\b/);
+});
+
+await check("callerKind classifies glitter-selftest/1 (direct and via MCP) as self-test, real tools unchanged", () => {
+  assert.equal(callerKind("glitter-selftest/1", ""), "self-test");
+  assert.equal(callerKind("glitter-selftest/1 via-mcp", "Cloudflare London, LLC"), "self-test");
+  assert.equal(callerKind("node", "Cloudflare London, LLC"), "script/developer");
+  assert.equal(callerKind("Mozilla/5.0 (compatible; ZeroBot/1.0; +https://zero.xyz/bot)", "Render"), "x402 directory");
+  assert.notEqual(callerKind("my-glitter-selftest/1", ""), "self-test");
+});
+
+await check("dailySummary excludes self-tests everywhere and shows them as one Self-tests count", async () => {
+  installFetch();
+  const db = new MemD1();
+  const now = Date.now();
+  db.attempts = [
+    { created_at: now, service_slug: "hello", stage: "probe", outcome: "payment_required", caller_kind: "x402 directory" },
+    { created_at: now, service_slug: "web-ai", stage: "verify", outcome: "verify_failed", caller_kind: "AI agent" },
+    { created_at: now, service_slug: "hello", stage: "probe", outcome: "payment_required", caller_kind: "self-test" },
+    { created_at: now, service_slug: "hello", stage: "probe", outcome: "payment_required", caller_kind: "self-test" },
+    { created_at: now, service_slug: "base-honeypot", stage: "verify", outcome: "verify_failed", caller_kind: "self-test" },
+    { created_at: now, service_slug: "hello", stage: "precheck", outcome: "v1_bad_header", caller_kind: "self-test" },
+    { created_at: now, service_slug: "json-tools", stage: "probe", outcome: "payment_required" },
+  ];
+  const env = envFor(db, { ACTIVITY: "https://example.test/activity" });
+  await dailySummary(env, { test: true });
+  const embed = posted[0].body.embeds[0];
+  const field = (n: string) => embed.fields.find((f: any) => f.name === n).value;
+  assert.equal(field("Calls"), "3");
+  assert.equal(field("Probes (unpaid 402)"), "2");
+  assert.match(field("Payment attempts"), /^1 /);
+  assert.match(field("Self-tests"), /^4 \(excluded above; 2 test payment attempts\)$/);
+  assert.match(field("Failures by outcome"), /verify_failed\*\*: 1/);
+  assert.doesNotMatch(field("Failures by outcome"), /v1_bad_header/);
+  assert.doesNotMatch(field("Top tools"), /base-honeypot/);
+  assert.match(embed.title, /^TEST/);
 });
 
 await check("dailySummary is a no-op when DAILY_SUMMARY is off, unless test:true", async () => {

@@ -6,6 +6,7 @@
 // Flow (buyer-protective AND seller-protective): verify -> run handler -> settle -> release result.
 //   * handler fails  => nothing is settled, buyer is not charged, invoice re-opens.
 //   * settle fails   => result is withheld (402/409), so work is never given away for free.
+import { SELF_TEST, SELFTEST_UA_RE } from "./selftest";
 import { isFacilitatorOutage, notifyAlert, notifyPayment } from "./notify";
 import { declareDiscoveryExtension } from "@x402/extensions/bazaar";
 import type { Env, PaidService, RouteDoc } from "./types";
@@ -215,6 +216,7 @@ function payerHint(p: any): string | undefined {
 /** Rough caller type from user-agent + network owner (ASN org). No IP addresses are stored. */
 export function callerKind(ua: string, org: string): string {
   const u = ua.toLowerCase(), o = org.toLowerCase();
+  if (SELFTEST_UA_RE.test(u)) return SELF_TEST; // our own e2e/probe scripts (also "glitter-selftest/1 via-mcp")
   if (/x402scan|bazaar|x402-?(index|observer|doctor|list)|agentic\.market|402index|p0-catalog|zerobot|brickbluebot/.test(u)) return "x402 directory";
   if (/uptime|pingdom|statuscake|betteruptime|healthcheck|monitor/.test(u)) return "uptime monitor";
   if (/googlebot|bingbot|gptbot|claudebot|perplexity|ccbot|bytespider|ahrefs|semrush|crawler|spider|bot\b/.test(u)) return "search/AI crawler";

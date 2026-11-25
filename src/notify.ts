@@ -1,6 +1,7 @@
 // Discord alerts for the private x402 section. Fire-and-forget: never affects the API response.
 // DISCORD_WEBHOOK_URL (#stats) stays bound and is not written to by this module.
 import type { Env } from "./types";
+import { NOT_SELF_TEST } from "./selftest";
 
 const short = (a: string) => (a && a.length > 14 ? `${a.slice(0, 6)}…${a.slice(-4)}` : a || "unknown");
 const etTime = (ms: number) =>
@@ -177,6 +178,7 @@ export function summaryEmbed(input: {
   failures: { outcome: string; n: number }[];
   tools: { service_slug: string; calls: number; attempts: number; paid: number }[];
   volume?: { asset_symbol: string; n: number; total: number }[];
+  selfTests?: { calls: number; attempts: number };
 }) {
   const unpaid = Math.max(0, input.attempts - input.paid);
   const failLines = input.failures.length
@@ -192,6 +194,7 @@ export function summaryEmbed(input: {
     { name: "Payment attempts", value: `${input.attempts} (excl. probes)`, inline: true },
     { name: "Paid", value: String(input.paid), inline: true },
     { name: "Unpaid attempts", value: String(unpaid), inline: true },
+    { name: "Self-tests", value: `${input.selfTests?.calls ?? 0} (excluded above; ${input.selfTests?.attempts ?? 0} test payment attempt${input.selfTests?.attempts === 1 ? "" : "s"})`, inline: true },
     { name: "Failures by outcome", value: failLines.slice(0, 1024), inline: false },
     { name: "Top tools", value: toolLines.slice(0, 1024), inline: false },
   ];
@@ -219,11 +222,12 @@ export async function dailySummary(env: Env, opts?: { test?: boolean }): Promise
   const since = Date.now() - 24 * 3600_000;
   const q = <T,>(sql: string, ...bind: unknown[]) =>
     env.DB.prepare(sql).bind(...bind).all<T>().then((r) => r.results ?? []).catch(() => [] as T[]);
-  const [totals, failures, tools, volume] = await Promise.all([
-    q<Row>("SELECT COUNT(*) AS calls, SUM(CASE WHEN stage = 'probe' THEN 1 ELSE 0 END) AS probes, SUM(CASE WHEN stage != 'probe' THEN 1 ELSE 0 END) AS attempts, SUM(CASE WHEN outcome = 'paid' THEN 1 ELSE 0 END) AS paid FROM payment_attempts WHERE created_at >= ?", since),
-    q<{ outcome: string; n: number }>("SELECT outcome, COUNT(*) AS n FROM payment_attempts WHERE created_at >= ? AND stage != 'probe' AND outcome != 'paid' GROUP BY outcome ORDER BY n DESC", since),
-    q<{ service_slug: string; calls: number; attempts: number; paid: number }>("SELECT service_slug, COUNT(*) AS calls, SUM(CASE WHEN stage != 'probe' THEN 1 ELSE 0 END) AS attempts, SUM(CASE WHEN outcome = 'paid' THEN 1 ELSE 0 END) AS paid FROM payment_attempts WHERE created_at >= ? GROUP BY service_slug ORDER BY calls DESC LIMIT 10", since),
+  const [totals, failures, tools, volume, self] = await Promise.all([
+    q<Row>(`SELECT COUNT(*) AS calls, SUM(CASE WHEN stage = 'probe' THEN 1 ELSE 0 END) AS probes, SUM(CASE WHEN stage != 'probe' THEN 1 ELSE 0 END) AS attempts, SUM(CASE WHEN outcome = 'paid' THEN 1 ELSE 0 END) AS paid FROM payment_attempts WHERE created_at >= ? AND ${NOT_SELF_TEST}`, since),
+    q<{ outcome: string; n: number }>(`SELECT outcome, COUNT(*) AS n FROM payment_attempts WHERE created_at >= ? AND stage != 'probe' AND outcome != 'paid' AND ${NOT_SELF_TEST} GROUP BY outcome ORDER BY n DESC`, since),
+    q<{ service_slug: string; calls: number; attempts: number; paid: number }>(`SELECT service_slug, COUNT(*) AS calls, SUM(CASE WHEN stage != 'probe' THEN 1 ELSE 0 END) AS attempts, SUM(CASE WHEN outcome = 'paid' THEN 1 ELSE 0 END) AS paid FROM payment_attempts WHERE created_at >= ? AND ${NOT_SELF_TEST} GROUP BY service_slug ORDER BY calls DESC LIMIT 10`, since),
     q<{ asset_symbol: string; n: number; total: number }>("SELECT asset_symbol, COUNT(*) AS n, SUM(CAST(amount_display AS REAL)) AS total FROM settlements WHERE created_at >= ? GROUP BY asset_symbol ORDER BY n DESC", since),
+    q<Row>("SELECT COUNT(*) AS calls, SUM(CASE WHEN stage != 'probe' THEN 1 ELSE 0 END) AS attempts FROM payment_attempts WHERE created_at >= ? AND caller_kind = 'self-test'", since),
   ]);
   const t = totals[0] ?? {};
   const body = discordBody([summaryEmbed({
@@ -236,6 +240,7 @@ export async function dailySummary(env: Env, opts?: { test?: boolean }): Promise
     failures,
     tools: tools.map((x) => ({ service_slug: String(x.service_slug), calls: Number(x.calls), attempts: Number(x.attempts), paid: Number(x.paid) })),
     volume: volume.map((x) => ({ asset_symbol: String(x.asset_symbol), n: Number(x.n), total: Number(x.total) })),
+    selfTests: { calls: Number(self[0]?.calls ?? 0), attempts: Number(self[0]?.attempts ?? 0) },
   })]);
   await postDiscord(env.DISCORD_WEBHOOK_ACTIVITY, body);
 }

@@ -1,5 +1,6 @@
 import type { Env } from "./types";
 import { HttpError, json } from "./util";
+import { NOT_SELF_TEST } from "./selftest";
 
 export function checkDashboardAuth(req: Request, env: Env) {
   if (!env.DASHBOARD_TOKEN) {
@@ -12,11 +13,13 @@ export function checkDashboardAuth(req: Request, env: Env) {
 }
 
 export async function stats(env: Env): Promise<Response> {
-  const attempts = env.DB.prepare("SELECT created_at, service_slug, stage, outcome, status, network, asset, amount, payer, tx_hash, detail, user_agent, caller_kind FROM payment_attempts WHERE stage != 'probe' ORDER BY id DESC LIMIT 50").all().catch(() => ({ results: [] as any[] }));
-  const attemptStats = env.DB.prepare("SELECT outcome, network, COUNT(*) AS n FROM payment_attempts WHERE stage != 'probe' GROUP BY outcome, network ORDER BY n DESC").all().catch(() => ({ results: [] as any[] }));
+  const attempts = env.DB.prepare("SELECT created_at, service_slug, stage, outcome, status, network, asset, amount, payer, tx_hash, detail, user_agent, caller_kind FROM payment_attempts WHERE stage != 'probe' AND " + NOT_SELF_TEST + " ORDER BY id DESC LIMIT 50").all().catch(() => ({ results: [] as any[] }));
+  const attemptStats = env.DB.prepare("SELECT outcome, network, COUNT(*) AS n FROM payment_attempts WHERE stage != 'probe' AND " + NOT_SELF_TEST + " GROUP BY outcome, network ORDER BY n DESC").all().catch(() => ({ results: [] as any[] }));
   // Caller directory (merged from the v2 draft): who calls, from what network, and whether they ever try to pay. No IPs stored.
   const callers = env.DB.prepare(`SELECT caller_kind, substr(user_agent,1,80) AS user_agent, as_org, country, COUNT(*) AS calls, SUM(stage != 'probe') AS pay_attempts, SUM(outcome = 'paid') AS paid, MAX(created_at) AS last_seen
-    FROM payment_attempts WHERE created_at > ? GROUP BY caller_kind, substr(user_agent,1,80), as_org ORDER BY calls DESC LIMIT 60`).bind(Date.now() - 7 * 864e5).all().catch(() => ({ results: [] as any[] }));
+    FROM payment_attempts WHERE created_at > ? AND ${NOT_SELF_TEST} GROUP BY caller_kind, substr(user_agent,1,80), as_org ORDER BY calls DESC LIMIT 60`).bind(Date.now() - 7 * 864e5).all().catch(() => ({ results: [] as any[] }));
+  // Our own e2e/probe scripts (User-Agent glitter-selftest/1): one separate count, kept out of every table above.
+  const selfTests = env.DB.prepare("SELECT COUNT(*) AS calls, SUM(stage != 'probe') AS pay_attempts, MAX(created_at) AS last_seen FROM payment_attempts WHERE created_at > ? AND caller_kind = 'self-test'").bind(Date.now() - 7 * 864e5).first().catch(() => null);
   const [byService, byProvider, recent, calls] = await Promise.all([
     env.DB.prepare("SELECT service_slug, asset_symbol, COUNT(*) AS paid_calls, SUM(CAST(amount_display AS REAL)) AS revenue FROM settlements GROUP BY service_slug, asset_symbol ORDER BY service_slug").all(),
     env.DB.prepare("SELECT provider_id, pay_to, asset_symbol, COUNT(*) AS paid_calls, SUM(CAST(amount_display AS REAL)) AS revenue, SUM(CAST(fee_owed_display AS REAL)) AS fees_owed FROM settlements GROUP BY provider_id, pay_to, asset_symbol").all(),
@@ -24,7 +27,7 @@ export async function stats(env: Env): Promise<Response> {
     env.DB.prepare("SELECT service_slug, outcome, COUNT(*) AS n FROM call_log GROUP BY service_slug, outcome").all(),
   ]);
   return json({ byService: byService.results, byProvider: byProvider.results, recent: recent.results, calls: calls.results,
-    attempts: (await attempts).results, attemptStats: (await attemptStats).results, callers: (await callers).results, explorerTxUrl: env.EXPLORER_TX_URL });
+    attempts: (await attempts).results, attemptStats: (await attemptStats).results, callers: (await callers).results, selfTests: (await selfTests) ?? { calls: 0, pay_attempts: 0, last_seen: null }, explorerTxUrl: env.EXPLORER_TX_URL });
 }
 
 export function dashboardHtml(env: Env): string {
@@ -37,7 +40,7 @@ a{color:#7cc4ff}.pill{display:inline-block;padding:1px 8px;border-radius:9px;bac
 <div id="svc"></div><h2>Paid calls & revenue by service</h2><table id="t1"></table>
 <h2>Revenue by provider / payTo</h2><table id="t2"></table><h2>Call outcomes</h2><table id="t4"></table>
 <h2>Recent settlements</h2><table id="t3"></table>
-<h2>Who is calling (last 7 days; no IPs stored)</h2><table id="t7"></table><h2>Payment attempts by outcome</h2><table id="t5"></table><h2>Recent payment attempts (every request that carried a payment)</h2><table id="t6"></table>
+<h2>Who is calling (last 7 days; no IPs stored; our self-tests excluded)</h2><p id="selftests"></p><table id="t7"></table><h2>Payment attempts by outcome</h2><table id="t5"></table><h2>Recent payment attempts (every request that carried a payment)</h2><table id="t6"></table>
 <script>
 const tok=new URLSearchParams(location.search).get('token');const q=tok?('?token='+encodeURIComponent(tok)):'';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -47,6 +50,7 @@ document.getElementById('svc').innerHTML='<h2>Services</h2><table>'+c.services.m
 tbl('t1',s.byService,['service_slug','asset_symbol','paid_calls','revenue']);
 tbl('t2',s.byProvider,['provider_id','pay_to','asset_symbol','paid_calls','revenue','fees_owed']);
 tbl('t4',s.calls,['service_slug','outcome','n']);
+document.getElementById('selftests').textContent='Self-tests (our own scripts, excluded from these stats): '+Number((s.selfTests||{}).calls||0)+' calls, '+Number((s.selfTests||{}).pay_attempts||0)+' test payment attempts in the last 7 days';
 tbl('t7',s.callers||[],['caller_kind','calls','pay_attempts','paid','user_agent','as_org','country','last_seen'],{last_seen:v=>new Date(v).toLocaleString()});
 tbl('t5',s.attemptStats||[],['outcome','network','n']);
 tbl('t6',s.attempts||[],['created_at','service_slug','stage','outcome','status','network','amount','asset','payer','detail','user_agent'],{created_at:v=>new Date(v).toLocaleString(),payer:v=>'<span class=mono>'+esc(v)+'</span>',user_agent:v=>esc(String(v||'').slice(0,60))});

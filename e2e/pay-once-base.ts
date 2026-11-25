@@ -1,5 +1,6 @@
 // One real $0.001 USDC payment on Base via PayAI to the live gateway (json-tools).
 // Usage (from repo root): npx tsx e2e/pay-once-base.ts   — key read from .secrets/test-payer-base.key, never printed.
+import "./selftest-ua.mjs";
 import { readFileSync } from "node:fs";
 import { x402Client, x402HTTPClient } from "@x402/core/client";
 import { ExactEvmScheme } from "@x402/evm";

@@ -1,9 +1,10 @@
 // Spawns the MCP server over stdio and calls list_services + one paid tool (testnet).
+import "../e2e/selftest-ua.mjs";
 import fs from "node:fs";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 const seed = JSON.parse(fs.readFileSync(".secrets/testnet-wallets.json", "utf8")).agent.seed;
-const transport = new StdioClientTransport({ command: "npx", args: ["tsx", "mcp/src/index.ts"], env: { ...process.env, XRPL_SEED: seed, GATEWAY_URL: "http://127.0.0.1:8787" } as any });
+const transport = new StdioClientTransport({ command: "npx", args: ["tsx", "mcp/src/index.ts"], env: { ...process.env, XRPL_SEED: seed, GATEWAY_URL: "http://127.0.0.1:8787", NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ""} --import ${new URL("../e2e/selftest-ua.mjs", import.meta.url).pathname}`.trim() } as any });
 const client = new Client({ name: "mcp-test", version: "0.0.1" });
 await client.connect(transport);
 console.log("tools:", (await client.listTools()).tools.map((t) => t.name).join(", "));

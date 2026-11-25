@@ -1,4 +1,5 @@
 // Probes every paid endpoint (unpaid) and checks the 402 shape per network. Usage: node probe402.mjs <base>
+import "./selftest-ua.mjs";
 const B = process.argv[2] ?? "http://localhost:8788";
 const eps = [["GET","/s/hello?name=t"],["GET","/s/web-markdown?url=https://example.com"],["GET","/s/xrpl-data/account?address=rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De"],["GET","/s/xrpl-data/token"],["GET","/s/xrpl-data/prices"],
   ["GET","/s/xrpl-token-safety?currency=RLUSD"],["GET","/s/xrpl-token-safety"],["POST","/s/convert"],["GET","/s/convert"],["POST","/s/json-tools"],["GET","/s/json-tools"],
@@ -17,8 +18,7 @@ for (const [m, p] of eps) {
   if (!ok) fail++;
   console.log(ok ? "ok  " : "FAIL", r.status, m, p, "|", nets, pr?.error?.startsWith("invalid_input") ? "| " + pr.error.slice(0, 70) : "");
 }
-// v1 payment header with garbage must be rejected 400 (never charged); unknown sub-route 404; MCP lists tools and caps batches
-{ const r = await fetch(B + "/s/hello", { headers: { "x-payment": "not-base64!" } }); const ok = r.status === 400; if (!ok) fail++; console.log(ok ? "ok  " : "FAIL", r.status, "v1 garbage X-PAYMENT"); }
+// Unknown sub-route 404; MCP lists tools and caps batches. Deliberate bad-payment checks live in e2e/v1-local-checks.ts (local dev only).
 { const r = await fetch(B + "/s/base-data/nope"); const ok = r.status === 404; if (!ok) fail++; console.log(ok ? "ok  " : "FAIL", r.status, "unknown sub-route"); }
 { const r = await fetch(B + "/mcp", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }) }); const j = await r.json(); const n = j.result?.tools?.length ?? 0; const ok = n >= 15; if (!ok) fail++; console.log(ok ? "ok  " : "FAIL", r.status, "MCP tools/list", n); }
 { const r = await fetch(B + "/mcp", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(Array.from({ length: 11 }, (_, i) => ({ jsonrpc: "2.0", id: i, method: "ping" }))) }); const ok = r.status === 400; if (!ok) fail++; console.log(ok ? "ok  " : "FAIL", r.status, "MCP batch of 11 refused"); }

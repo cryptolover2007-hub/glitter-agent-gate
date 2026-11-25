@@ -1,4 +1,5 @@
 // Re-checks every tx in e2e/tx-log.jsonl on the XRPL TESTNET ledger and writes e2e/RESULTS.md.
+import "./selftest-ua.mjs";
 import fs from "node:fs";
 import { Client } from "xrpl";
 const lines = fs.readFileSync("e2e/tx-log.jsonl", "utf8").trim().split("\n").map((l) => JSON.parse(l));
